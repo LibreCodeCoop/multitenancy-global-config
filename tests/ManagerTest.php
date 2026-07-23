@@ -138,6 +138,18 @@ final class ManagerTest extends TestCase {
 		);
 	}
 
+	public function testThrowsWhenAMatrixKeyIsAnInvalidRegex(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'invalid-pattern' => ['dbname' => 'tenant01'],
+		]);
+		$manager = new Manager($this->configDir);
+
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('invalid-pattern');
+
+		$manager->getConfig('dominio01.exemplo.coop');
+	}
+
 	private function writeMatrix(string $fileName, array $matrix): void {
 		file_put_contents(
 			$this->configDir . '/' . $fileName,
