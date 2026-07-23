@@ -18,6 +18,7 @@ namespace LibreCode\MultiTenancyGlobalConfig;
  */
 final class Manager {
 	public const DEFAULT_CONFIG_FILE = 'multitenancy.database.php';
+	public const ENV_CONFIG_FILE = 'MULTITENANCY_CONFIG_FILE';
 
 	public function __construct(
 		private string $configDir,
@@ -43,7 +44,8 @@ final class Manager {
 	 * the $CONFIG variable it defines.
 	 */
 	private function readMatrix(): array {
-		$file = $this->configDir . '/' . self::DEFAULT_CONFIG_FILE;
+		$fileName = getenv(self::ENV_CONFIG_FILE) ?: self::DEFAULT_CONFIG_FILE;
+		$file = $this->configDir . '/' . $fileName;
 		if (!file_exists($file)) {
 			return [];
 		}

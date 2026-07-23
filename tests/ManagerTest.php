@@ -21,6 +21,7 @@ final class ManagerTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
+		putenv(Manager::ENV_CONFIG_FILE);
 		array_map('unlink', glob($this->configDir . '/*') ?: []);
 		rmdir($this->configDir);
 	}
@@ -66,6 +67,16 @@ final class ManagerTest extends TestCase {
 		$manager = new Manager($this->configDir);
 
 		$this->assertSame(['dbname' => 'first'], $manager->getConfig('dominio01.exemplo.coop'));
+	}
+
+	public function testEnvironmentVariableOverridesTheMatrixFileName(): void {
+		$this->writeMatrix('custom.database.php', [
+			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+		]);
+		putenv(Manager::ENV_CONFIG_FILE . '=custom.database.php');
+		$manager = new Manager($this->configDir);
+
+		$this->assertSame(['dbname' => 'tenant01'], $manager->getConfig('dominio01.exemplo.coop'));
 	}
 
 	private function writeMatrix(string $fileName, array $matrix): void {
