@@ -104,6 +104,16 @@ final class ManagerTest extends TestCase {
 		);
 	}
 
+	public function testReturnsEmptyArrayWhenMatrixFileDoesNotDefineAConfigArray(): void {
+		file_put_contents(
+			$this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE,
+			'<?php // no $CONFIG defined here',
+		);
+		$manager = new Manager($this->configDir);
+
+		$this->assertSame([], $manager->getConfig('dominio01.exemplo.coop'));
+	}
+
 	private function writeMatrix(string $fileName, array $matrix): void {
 		file_put_contents(
 			$this->configDir . '/' . $fileName,

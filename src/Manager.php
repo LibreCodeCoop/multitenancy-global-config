@@ -61,6 +61,9 @@ final class Manager {
 
 		include $file;
 
+		if (!isset($CONFIG) || !is_array($CONFIG)) {
+			return [];
+		}
 		return $CONFIG;
 	}
 }
