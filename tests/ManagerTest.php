@@ -49,6 +49,15 @@ final class ManagerTest extends TestCase {
 		);
 	}
 
+	public function testReturnsEmptyArrayWhenNoRegexKeyMatchesTheHost(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+		]);
+		$manager = new Manager($this->configDir);
+
+		$this->assertSame([], $manager->getConfig('unknown.exemplo.coop'));
+	}
+
 	private function writeMatrix(string $fileName, array $matrix): void {
 		file_put_contents(
 			$this->configDir . '/' . $fileName,
