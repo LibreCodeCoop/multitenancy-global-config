@@ -26,10 +26,6 @@ final class Manager {
 	}
 
 	/**
-	 * Returns the tenant config matching the given host, or an empty array
-	 * when there is no match.
-	 */
-	/**
 	 * Entry point for the `multitenancy.config.php` loader: resolves the
 	 * tenant config for the current request host.
 	 */
@@ -38,6 +34,10 @@ final class Manager {
 		return (new self($configDir))->getConfig($host);
 	}
 
+	/**
+	 * Returns the tenant config matching the given host, or an empty array
+	 * when there is no match.
+	 */
 	public function getConfig(string $host): array {
 		foreach ($this->readMatrix() as $pattern => $tenantConfig) {
 			if (preg_match($pattern, $host) === 1) {
