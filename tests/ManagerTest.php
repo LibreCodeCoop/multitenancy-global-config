@@ -92,6 +92,18 @@ final class ManagerTest extends TestCase {
 		);
 	}
 
+	public function testGetConfigFromEnvironmentFallsBackToLocalhostWithoutHttpHost(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'/^localhost$/' => ['dbname' => 'local'],
+		]);
+		unset($_SERVER['HTTP_HOST']);
+
+		$this->assertSame(
+			['dbname' => 'local'],
+			Manager::getConfigFromEnvironment($this->configDir),
+		);
+	}
+
 	private function writeMatrix(string $fileName, array $matrix): void {
 		file_put_contents(
 			$this->configDir . '/' . $fileName,
