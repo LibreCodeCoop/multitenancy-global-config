@@ -22,6 +22,7 @@ final class ManagerTest extends TestCase {
 
 	protected function tearDown(): void {
 		putenv(Manager::ENV_CONFIG_FILE);
+		unset($_SERVER['HTTP_HOST']);
 		array_map('unlink', glob($this->configDir . '/*') ?: []);
 		rmdir($this->configDir);
 	}
@@ -77,6 +78,18 @@ final class ManagerTest extends TestCase {
 		$manager = new Manager($this->configDir);
 
 		$this->assertSame(['dbname' => 'tenant01'], $manager->getConfig('dominio01.exemplo.coop'));
+	}
+
+	public function testGetConfigFromEnvironmentResolvesUsingHttpHost(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+		]);
+		$_SERVER['HTTP_HOST'] = 'dominio01.exemplo.coop';
+
+		$this->assertSame(
+			['dbname' => 'tenant01'],
+			Manager::getConfigFromEnvironment($this->configDir),
+		);
 	}
 
 	private function writeMatrix(string $fileName, array $matrix): void {
