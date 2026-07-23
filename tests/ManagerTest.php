@@ -114,6 +114,18 @@ final class ManagerTest extends TestCase {
 		$this->assertSame([], $manager->getConfig('dominio01.exemplo.coop'));
 	}
 
+	public function testGetConfigFromEnvironmentStripsThePortFromTheHost(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+		]);
+		$_SERVER['HTTP_HOST'] = 'dominio01.exemplo.coop:8080';
+
+		$this->assertSame(
+			['dbname' => 'tenant01'],
+			Manager::getConfigFromEnvironment($this->configDir),
+		);
+	}
+
 	private function writeMatrix(string $fileName, array $matrix): void {
 		file_put_contents(
 			$this->configDir . '/' . $fileName,

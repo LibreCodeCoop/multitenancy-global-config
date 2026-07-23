@@ -31,6 +31,9 @@ final class Manager {
 	 */
 	public static function getConfigFromEnvironment(string $configDir): array {
 		$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+		// The Host header may carry a port (host:8080); strip it before
+		// matching, like \OC\Security\TrustedDomainHelper does.
+		$host = preg_replace('/:\d+$/', '', $host);
 		return (new self($configDir))->getConfig($host);
 	}
 
