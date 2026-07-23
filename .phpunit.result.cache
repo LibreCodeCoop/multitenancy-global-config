@@ -1,0 +1,1 @@
+{"version":2,"defects":{"LibreCode\\MultiTenancyGlobalConfig\\Tests\\ManagerTest::testReturnsEmptyArrayWhenMatrixFileIsMissing":8},"times":{"LibreCode\\MultiTenancyGlobalConfig\\Tests\\ManagerTest::testReturnsEmptyArrayWhenMatrixFileIsMissing":0.002}}
