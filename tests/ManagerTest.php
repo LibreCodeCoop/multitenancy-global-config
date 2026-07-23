@@ -126,6 +126,18 @@ final class ManagerTest extends TestCase {
 		);
 	}
 
+	public function testGetConfigFromEnvironmentMatchesTheHostCaseInsensitively(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+		]);
+		$_SERVER['HTTP_HOST'] = 'DOMINIO01.Exemplo.Coop';
+
+		$this->assertSame(
+			['dbname' => 'tenant01'],
+			Manager::getConfigFromEnvironment($this->configDir),
+		);
+	}
+
 	private function writeMatrix(string $fileName, array $matrix): void {
 		file_put_contents(
 			$this->configDir . '/' . $fileName,
