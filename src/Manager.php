@@ -29,6 +29,27 @@ final class Manager {
 	 * when there is no match.
 	 */
 	public function getConfig(string $host): array {
+		foreach ($this->readMatrix() as $pattern => $tenantConfig) {
+			if (preg_match($pattern, $host) === 1) {
+				return $tenantConfig;
+			}
+		}
 		return [];
+	}
+
+	/**
+	 * Reads the matrix file, mapping host regex patterns to tenant configs.
+	 * Reading mirrors \OC\Config::readData(): include the file and pick up
+	 * the $CONFIG variable it defines.
+	 */
+	private function readMatrix(): array {
+		$file = $this->configDir . '/' . self::DEFAULT_CONFIG_FILE;
+		if (!file_exists($file)) {
+			return [];
+		}
+
+		include $file;
+
+		return $CONFIG;
 	}
 }

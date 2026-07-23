@@ -30,4 +30,29 @@ final class ManagerTest extends TestCase {
 
 		$this->assertSame([], $manager->getConfig('dominio01.exemplo.coop'));
 	}
+
+	public function testReturnsTenantConfigWhenHostMatchesARegexKey(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'/^dominio01\.exemplo\.coop$/' => [
+				'dbname' => 'tenant01',
+				'mail_smtphost' => 'smtp01.exemplo.coop',
+			],
+		]);
+		$manager = new Manager($this->configDir);
+
+		$this->assertSame(
+			[
+				'dbname' => 'tenant01',
+				'mail_smtphost' => 'smtp01.exemplo.coop',
+			],
+			$manager->getConfig('dominio01.exemplo.coop'),
+		);
+	}
+
+	private function writeMatrix(string $fileName, array $matrix): void {
+		file_put_contents(
+			$this->configDir . '/' . $fileName,
+			'<?php $CONFIG = ' . var_export($matrix, true) . ';',
+		);
+	}
 }
