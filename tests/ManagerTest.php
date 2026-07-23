@@ -58,6 +58,16 @@ final class ManagerTest extends TestCase {
 		$this->assertSame([], $manager->getConfig('unknown.exemplo.coop'));
 	}
 
+	public function testFirstMatchingRegexKeyWins(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'/^dominio01\./' => ['dbname' => 'first'],
+			'/\.exemplo\.coop$/' => ['dbname' => 'second'],
+		]);
+		$manager = new Manager($this->configDir);
+
+		$this->assertSame(['dbname' => 'first'], $manager->getConfig('dominio01.exemplo.coop'));
+	}
+
 	private function writeMatrix(string $fileName, array $matrix): void {
 		file_put_contents(
 			$this->configDir . '/' . $fileName,
