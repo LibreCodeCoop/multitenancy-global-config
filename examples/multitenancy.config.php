@@ -16,6 +16,9 @@
  *   multitenancy.database.php -> multitenancy.config.php -> Nextcloud global config
  *
  * Adjust the require_once path below to where this module is installed.
+ *
+ * CLI processes (occ, cron) have no Host header and fall back to `localhost`;
+ * set HTTP_HOST in the environment to run them as a specific tenant.
  */
 require_once __DIR__ . '/../apps-extra/nextcloud-multitenancy-global-config/src/Manager.php';
 

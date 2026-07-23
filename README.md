@@ -70,6 +70,26 @@ $CONFIG = [
 The matrix file name can be overridden with the `MULTITENANCY_CONFIG_FILE`
 environment variable (relative to the `config/` directory).
 
+A matrix key that is not a valid regex raises a `RuntimeException`: a broken
+matrix fails loudly instead of silently routing tenants to the base config.
+
+## Trust boundary
+
+The `Host` header is fully client-controlled. Anchored regex keys (`/^...$/`)
+prevent one tenant from selecting another tenant's config, but a host that
+matches no key falls through to the **base** Nextcloud config. Configure your
+reverse proxy to route only known tenant hosts to this instance.
+
+## CLI (occ, cron, background jobs)
+
+CLI processes have no `Host` header, so they fall back to `localhost` and run
+against the base config. To run a command as a specific tenant, set `HTTP_HOST`
+in the environment (PHP CLI exposes environment variables in `$_SERVER`):
+
+```bash
+HTTP_HOST=dominio01.exemplo.coop php occ maintenance:mode --on
+```
+
 ## Development
 
 ```bash
