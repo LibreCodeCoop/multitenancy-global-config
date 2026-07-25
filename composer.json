@@ -1,5 +1,5 @@
 {
-    "name": "librecodecoop/nextcloud-multitenancy-global-config",
+    "name": "librecodecoop/multitenancy-global-config",
     "description": "Multi-tenant global config loader for Nextcloud: resolves $CONFIG per request host from a domain config matrix",
     "type": "library",
     "license": "AGPL-3.0-or-later",
