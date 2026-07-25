@@ -27,21 +27,21 @@ final class Manager {
 
 	/**
 	 * Entry point for the `multitenancy.config.php` loader: resolves the
-	 * tenant config for the current request host.
+	 * tenant config for the given request host.
 	 */
-	public static function getConfigFromEnvironment(string $configDir): array {
-		$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-		$host = preg_replace('/:\d+$/', '', strtolower($host));
+	public static function getConfigFromHost(string $configDir, string $host): array {
 		return (new self($configDir))->getConfig($host);
 	}
 
 	/**
 	 * Returns the tenant config matching the given host, or an empty array
-	 * when there is no match.
+	 * when there is no match. The host is normalized before matching: the
+	 * port is stripped and the name is lowercased.
 	 *
 	 * @throws \RuntimeException when a matrix key is not a valid regex
 	 */
 	public function getConfig(string $host): array {
+		$host = preg_replace('/:\d+$/', '', strtolower($host));
 		foreach ($this->readMatrix() as $pattern => $tenantConfig) {
 			$result = @preg_match($pattern, $host);
 			if ($result === false) {

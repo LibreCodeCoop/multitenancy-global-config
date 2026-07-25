@@ -20,6 +20,9 @@
  * CLI processes (occ, cron) have no Host header and fall back to `localhost`;
  * set HTTP_HOST in the environment to run them as a specific tenant.
  */
-require_once __DIR__ . '/../apps-extra/nextcloud-multitenancy-global-config/src/Manager.php';
+require_once __DIR__ . '/../apps-extra/multitenancy-global-config/src/Manager.php';
 
-$CONFIG = \LibreCode\MultiTenancyGlobalConfig\Manager::getConfigFromEnvironment(__DIR__);
+$CONFIG = \LibreCode\MultiTenancyGlobalConfig\Manager::getConfigFromHost(
+	__DIR__,
+	$_SERVER['HTTP_HOST'] ?? 'localhost',
+);

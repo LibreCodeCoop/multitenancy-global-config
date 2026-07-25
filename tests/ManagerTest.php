@@ -22,7 +22,6 @@ final class ManagerTest extends TestCase {
 
 	protected function tearDown(): void {
 		putenv(Manager::ENV_CONFIG_FILE);
-		unset($_SERVER['HTTP_HOST']);
 		array_map('unlink', glob($this->configDir . '/*') ?: []);
 		rmdir($this->configDir);
 	}
@@ -80,27 +79,14 @@ final class ManagerTest extends TestCase {
 		$this->assertSame(['dbname' => 'tenant01'], $manager->getConfig('dominio01.exemplo.coop'));
 	}
 
-	public function testGetConfigFromEnvironmentResolvesUsingHttpHost(): void {
+	public function testGetConfigFromHostResolvesTheTenantWithoutAnInstance(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
 			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
 		]);
-		$_SERVER['HTTP_HOST'] = 'dominio01.exemplo.coop';
 
 		$this->assertSame(
 			['dbname' => 'tenant01'],
-			Manager::getConfigFromEnvironment($this->configDir),
-		);
-	}
-
-	public function testGetConfigFromEnvironmentFallsBackToLocalhostWithoutHttpHost(): void {
-		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^localhost$/' => ['dbname' => 'local'],
-		]);
-		unset($_SERVER['HTTP_HOST']);
-
-		$this->assertSame(
-			['dbname' => 'local'],
-			Manager::getConfigFromEnvironment($this->configDir),
+			Manager::getConfigFromHost($this->configDir, 'dominio01.exemplo.coop'),
 		);
 	}
 
@@ -114,27 +100,27 @@ final class ManagerTest extends TestCase {
 		$this->assertSame([], $manager->getConfig('dominio01.exemplo.coop'));
 	}
 
-	public function testGetConfigFromEnvironmentStripsThePortFromTheHost(): void {
+	public function testStripsThePortFromTheHostBeforeMatching(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
 			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
 		]);
-		$_SERVER['HTTP_HOST'] = 'dominio01.exemplo.coop:8080';
+		$manager = new Manager($this->configDir);
 
 		$this->assertSame(
 			['dbname' => 'tenant01'],
-			Manager::getConfigFromEnvironment($this->configDir),
+			$manager->getConfig('dominio01.exemplo.coop:8080'),
 		);
 	}
 
-	public function testGetConfigFromEnvironmentMatchesTheHostCaseInsensitively(): void {
+	public function testMatchesTheHostCaseInsensitively(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
 			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
 		]);
-		$_SERVER['HTTP_HOST'] = 'DOMINIO01.Exemplo.Coop';
+		$manager = new Manager($this->configDir);
 
 		$this->assertSame(
 			['dbname' => 'tenant01'],
-			Manager::getConfigFromEnvironment($this->configDir),
+			$manager->getConfig('DOMINIO01.Exemplo.Coop'),
 		);
 	}
 

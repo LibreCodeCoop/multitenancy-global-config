@@ -2,7 +2,7 @@
   - SPDX-FileCopyrightText: 2026 LibreCode Coop
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
-# Nextcloud Multi-tenancy Global Config
+# Multi-tenancy Global Config
 
 Multi-tenant global config loader for Nextcloud: resolves `$CONFIG` per request
 host from a domain config matrix.
@@ -30,10 +30,11 @@ auto-loaded by Nextcloud)      calls this module)
   name intentionally does **not** end in `config.php`, so Nextcloud does not
   load it directly.
 - The **loader** `config/multitenancy.config.php` (auto-loaded by Nextcloud)
-  calls `Manager::getConfigFromEnvironment()`, which matches the current
-  request host (`$_SERVER['HTTP_HOST']`, falling back to `localhost`) against
-  the regex keys of the matrix and returns the matching tenant config —
-  or an empty array when nothing matches.
+  reads the request host (`$_SERVER['HTTP_HOST']`, falling back to `localhost`)
+  and hands it to `Manager::getConfigFromHost()`, which matches it against the
+  regex keys of the matrix and returns the matching tenant config — or an empty
+  array when nothing matches. Reading the superglobal is the loader's job, so
+  the `Manager` itself stays free of global state.
 
 ## Installation
 
@@ -42,7 +43,7 @@ anywhere the PHP process can read — inside or outside the Nextcloud webroot �
 and adjust the `require` path in the loader accordingly.
 
 ```bash
-git clone https://github.com/LibreCodeCoop/nextcloud-multitenancy-global-config.git
+git clone https://github.com/LibreCodeCoop/multitenancy-global-config.git
 ```
 
 1. Copy `examples/multitenancy.config.php` to your Nextcloud `config/`
