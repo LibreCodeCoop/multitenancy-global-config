@@ -30,8 +30,8 @@ auto-loaded by Nextcloud)      calls this module)
   name intentionally does **not** end in `config.php`, so Nextcloud does not
   load it directly.
 - The **loader** `config/multitenancy.config.php` (auto-loaded by Nextcloud)
-  reads the request host (`$_SERVER['HTTP_HOST']`, falling back to `localhost`)
-  and hands it to `Manager::getConfigFromHost()`, which matches it against the
+  reads the request host (`$_SERVER['HTTP_HOST']`) and hands it to
+  `Manager::getConfigFromHost()`, which matches it against the
   regex keys of the matrix and returns the matching tenant config — or an empty
   array when nothing matches. Reading the superglobal is the loader's job, so
   the `Manager` itself stays free of global state.
