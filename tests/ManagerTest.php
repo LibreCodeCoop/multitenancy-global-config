@@ -10,20 +10,19 @@ declare(strict_types=1);
 namespace LibreCode\MultiTenancyGlobalConfig\Tests;
 
 use LibreCode\MultiTenancyGlobalConfig\Manager;
+use org\bovigo\vfs\vfsStream;
 use PHPUnit\Framework\TestCase;
 
 final class ManagerTest extends TestCase {
 	private string $configDir;
 
 	protected function setUp(): void {
-		$this->configDir = sys_get_temp_dir() . '/multitenancy-test-' . uniqid();
-		mkdir($this->configDir);
+		vfsStream::setup('multitenancy-test');
+		$this->configDir = vfsStream::url('multitenancy-test');
 	}
 
 	protected function tearDown(): void {
 		putenv(Manager::ENV_CONFIG_FILE);
-		array_map('unlink', glob($this->configDir . '/*') ?: []);
-		rmdir($this->configDir);
 	}
 
 	public function testReturnsEmptyArrayWhenMatrixFileIsMissing(): void {
