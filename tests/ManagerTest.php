@@ -33,7 +33,7 @@ final class ManagerTest extends TestCase {
 
 	public function testReturnsTenantConfigWhenHostMatchesARegexKey(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^dominio01\.exemplo\.coop$/' => [
+			'/^domain01\.example\.coop$/' => [
 				'dbname' => 'tenant01',
 				'mail_smtphost' => 'smtp01.exemplo.coop',
 			],
