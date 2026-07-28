@@ -11,6 +11,7 @@ namespace LibreCode\MultiTenancyGlobalConfig\Tests;
 
 use LibreCode\MultiTenancyGlobalConfig\Manager;
 use org\bovigo\vfs\vfsStream;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class ManagerTest extends TestCase {
@@ -31,7 +32,8 @@ final class ManagerTest extends TestCase {
 		$this->assertSame([], $manager->getConfig('domain01.example.coop'));
 	}
 
-	public function testReturnsTenantConfigWhenHostMatchesARegexKey(): void {
+	#[DataProvider('hostMatchingProvider')]
+	public function testMatchesHostAgainstRegexKey(string $host, array $expected): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
 			'/^domain01\.example\.coop$/' => [
 				'dbname' => 'tenant01',
@@ -40,22 +42,18 @@ final class ManagerTest extends TestCase {
 		]);
 		$manager = new Manager($this->configDir);
 
-		$this->assertSame(
-			[
-				'dbname' => 'tenant01',
-				'mail_smtphost' => 'smtp01.example.coop',
-			],
-			$manager->getConfig('domain01.example.coop'),
-		);
+		$this->assertSame($expected, $manager->getConfig($host));
 	}
 
-	public function testReturnsEmptyArrayWhenNoRegexKeyMatchesTheHost(): void {
-		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^domain01\.example\.coop$/' => ['dbname' => 'tenant01'],
-		]);
-		$manager = new Manager($this->configDir);
+	public static function hostMatchingProvider(): array {
+		$tenantConfig = ['dbname' => 'tenant01', 'mail_smtphost' => 'smtp01.example.coop'];
 
-		$this->assertSame([], $manager->getConfig('unknown.example.coop'));
+		return [
+			'exact match' => ['domain01.example.coop', $tenantConfig],
+			'port is stripped before matching' => ['domain01.example.coop:8080', $tenantConfig],
+			'host is matched case-insensitively' => ['DOMAIN01.Example.Coop', $tenantConfig],
+			'no regex key matches the host' => ['unknown.example.coop', []],
+		];
 	}
 
 	public function testFirstMatchingRegexKeyWins(): void {
@@ -97,30 +95,6 @@ final class ManagerTest extends TestCase {
 		$manager = new Manager($this->configDir);
 
 		$this->assertSame([], $manager->getConfig('domain01.example.coop'));
-	}
-
-	public function testStripsThePortFromTheHostBeforeMatching(): void {
-		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^domain01\.example\.coop$/' => ['dbname' => 'tenant01'],
-		]);
-		$manager = new Manager($this->configDir);
-
-		$this->assertSame(
-			['dbname' => 'tenant01'],
-			$manager->getConfig('domain01.example.coop:8080'),
-		);
-	}
-
-	public function testMatchesTheHostCaseInsensitively(): void {
-		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^domain01\.example\.coop$/' => ['dbname' => 'tenant01'],
-		]);
-		$manager = new Manager($this->configDir);
-
-		$this->assertSame(
-			['dbname' => 'tenant01'],
-			$manager->getConfig('DOMAIN01.Example.Coop'),
-		);
 	}
 
 	public function testThrowsWhenAMatrixKeyIsAnInvalidRegex(): void {
