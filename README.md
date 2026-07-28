@@ -10,7 +10,7 @@ host from a domain config matrix.
 ## Problem
 
 A single Nextcloud instance serving multiple domains (e.g.
-`dominio01.exemplo.coop`, `dominio02.exemplo.coop`) may need different settings
+`domain01.example.coop`, `domain02.example.coop`) may need different settings
 per domain: database (`dbname`, `dbhost`, ...), SMTP (`mail_smtphost`), data
 directory (`datadirectory`), etc. Nextcloud has no structured way to load
 configuration based on the request host.
@@ -61,9 +61,9 @@ request host. The first matching key wins. Values are regular Nextcloud
 ```php
 <?php
 $CONFIG = [
-    '/^dominio01\.exemplo\.coop$/' => [
+    '/^domain01\.example\.coop$/' => [
         'dbname' => 'tenant01',
-        'mail_smtphost' => 'smtp01.exemplo.coop',
+        'mail_smtphost' => 'smtp01.example.coop',
     ],
 ];
 ```
@@ -88,7 +88,7 @@ against the base config. To run a command as a specific tenant, set `HTTP_HOST`
 in the environment (PHP CLI exposes environment variables in `$_SERVER`):
 
 ```bash
-HTTP_HOST=dominio01.exemplo.coop php occ maintenance:mode --on
+HTTP_HOST=domain01.example.coop php occ maintenance:mode --on
 ```
 
 ## Development

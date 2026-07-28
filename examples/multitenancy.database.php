@@ -16,12 +16,12 @@
  *   multitenancy.database.php -> multitenancy.config.php -> Nextcloud global config
  */
 $CONFIG = [
-	'/^dominio01\.exemplo\.coop$/' => [
+	'/^domain01\.example\.coop$/' => [
 		'dbname' => 'tenant01',
-		'mail_smtphost' => 'smtp01.exemplo.coop',
+		'mail_smtphost' => 'smtp01.example.coop',
 	],
-	'/^dominio02\.exemplo\.coop$/' => [
+	'/^domain02\.example\.coop$/' => [
 		'dbname' => 'tenant02',
-		'mail_smtphost' => 'smtp02.exemplo.coop',
+		'mail_smtphost' => 'smtp02.example.coop',
 	],
 ];

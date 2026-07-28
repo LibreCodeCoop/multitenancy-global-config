@@ -28,14 +28,14 @@ final class ManagerTest extends TestCase {
 	public function testReturnsEmptyArrayWhenMatrixFileIsMissing(): void {
 		$manager = new Manager($this->configDir);
 
-		$this->assertSame([], $manager->getConfig('dominio01.exemplo.coop'));
+		$this->assertSame([], $manager->getConfig('domain01.example.coop'));
 	}
 
 	public function testReturnsTenantConfigWhenHostMatchesARegexKey(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
 			'/^domain01\.example\.coop$/' => [
 				'dbname' => 'tenant01',
-				'mail_smtphost' => 'smtp01.exemplo.coop',
+				'mail_smtphost' => 'smtp01.example.coop',
 			],
 		]);
 		$manager = new Manager($this->configDir);
@@ -43,49 +43,49 @@ final class ManagerTest extends TestCase {
 		$this->assertSame(
 			[
 				'dbname' => 'tenant01',
-				'mail_smtphost' => 'smtp01.exemplo.coop',
+				'mail_smtphost' => 'smtp01.example.coop',
 			],
-			$manager->getConfig('dominio01.exemplo.coop'),
+			$manager->getConfig('domain01.example.coop'),
 		);
 	}
 
 	public function testReturnsEmptyArrayWhenNoRegexKeyMatchesTheHost(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+			'/^domain01\.example\.coop$/' => ['dbname' => 'tenant01'],
 		]);
 		$manager = new Manager($this->configDir);
 
-		$this->assertSame([], $manager->getConfig('unknown.exemplo.coop'));
+		$this->assertSame([], $manager->getConfig('unknown.example.coop'));
 	}
 
 	public function testFirstMatchingRegexKeyWins(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^dominio01\./' => ['dbname' => 'first'],
-			'/\.exemplo\.coop$/' => ['dbname' => 'second'],
+			'/^domain01\./' => ['dbname' => 'first'],
+			'/\.example\.coop$/' => ['dbname' => 'second'],
 		]);
 		$manager = new Manager($this->configDir);
 
-		$this->assertSame(['dbname' => 'first'], $manager->getConfig('dominio01.exemplo.coop'));
+		$this->assertSame(['dbname' => 'first'], $manager->getConfig('domain01.example.coop'));
 	}
 
 	public function testEnvironmentVariableOverridesTheMatrixFileName(): void {
 		$this->writeMatrix('custom.database.php', [
-			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+			'/^domain01\.example\.coop$/' => ['dbname' => 'tenant01'],
 		]);
 		putenv(Manager::ENV_CONFIG_FILE . '=custom.database.php');
 		$manager = new Manager($this->configDir);
 
-		$this->assertSame(['dbname' => 'tenant01'], $manager->getConfig('dominio01.exemplo.coop'));
+		$this->assertSame(['dbname' => 'tenant01'], $manager->getConfig('domain01.example.coop'));
 	}
 
 	public function testGetConfigFromHostResolvesTheTenantWithoutAnInstance(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+			'/^domain01\.example\.coop$/' => ['dbname' => 'tenant01'],
 		]);
 
 		$this->assertSame(
 			['dbname' => 'tenant01'],
-			Manager::getConfigFromHost($this->configDir, 'dominio01.exemplo.coop'),
+			Manager::getConfigFromHost($this->configDir, 'domain01.example.coop'),
 		);
 	}
 
@@ -96,30 +96,30 @@ final class ManagerTest extends TestCase {
 		);
 		$manager = new Manager($this->configDir);
 
-		$this->assertSame([], $manager->getConfig('dominio01.exemplo.coop'));
+		$this->assertSame([], $manager->getConfig('domain01.example.coop'));
 	}
 
 	public function testStripsThePortFromTheHostBeforeMatching(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+			'/^domain01\.example\.coop$/' => ['dbname' => 'tenant01'],
 		]);
 		$manager = new Manager($this->configDir);
 
 		$this->assertSame(
 			['dbname' => 'tenant01'],
-			$manager->getConfig('dominio01.exemplo.coop:8080'),
+			$manager->getConfig('domain01.example.coop:8080'),
 		);
 	}
 
 	public function testMatchesTheHostCaseInsensitively(): void {
 		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
-			'/^dominio01\.exemplo\.coop$/' => ['dbname' => 'tenant01'],
+			'/^domain01\.example\.coop$/' => ['dbname' => 'tenant01'],
 		]);
 		$manager = new Manager($this->configDir);
 
 		$this->assertSame(
 			['dbname' => 'tenant01'],
-			$manager->getConfig('DOMINIO01.Exemplo.Coop'),
+			$manager->getConfig('DOMAIN01.Example.Coop'),
 		);
 	}
 
@@ -132,7 +132,7 @@ final class ManagerTest extends TestCase {
 		$this->expectException(\RuntimeException::class);
 		$this->expectExceptionMessage('invalid-pattern');
 
-		$manager->getConfig('dominio01.exemplo.coop');
+		$manager->getConfig('domain01.example.coop');
 	}
 
 	private function writeMatrix(string $fileName, array $matrix): void {
