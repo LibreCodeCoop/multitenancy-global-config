@@ -8,21 +8,17 @@
 /*
  * Multi-tenancy loader. Copy this file to the Nextcloud config/ directory.
  *
- * Nextcloud auto-loads every config/*.config.php file and merges its $CONFIG
- * into the global config (see \OC\Config::readData()). This loader resolves
- * the tenant config for the current request host from the tenant matrix.
+ * Nextcloud auto-loads every config/*.config.php file from inside
+ * \OC\Config::readData(), which is what lets the module reach the config
+ * instance. Keep this file a thin shim: it only says where the tenant matrix
+ * lives and where the module is installed.
  *
  * Loading chain:
- *   multitenancy.database.php -> multitenancy.config.php -> Nextcloud global config
+ *   multitenancy.database.php -> multitenancy.config.php -> src/loader.php
  *
- * Adjust the require_once path below to where this module is installed.
- *
- * CLI processes (occ, cron) have no Host header and fall back to `localhost`;
- * set HTTP_HOST in the environment to run them as a specific tenant.
+ * Adjust the require path below to where this module is installed.
  */
-require_once __DIR__ . '/../apps-extra/multitenancy-global-config/src/Manager.php';
 
-$CONFIG = \LibreCode\MultiTenancyGlobalConfig\Manager::getConfigFromHost(
-	__DIR__,
-	$_SERVER['HTTP_HOST'] ?? 'localhost',
-);
+$multitenancyConfigDir = __DIR__;
+
+require __DIR__ . '/../apps-extra/multitenancy-global-config/src/loader.php';

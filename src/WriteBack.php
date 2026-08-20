@@ -35,6 +35,17 @@ final class WriteBack {
 	) {
 	}
 
+	/**
+	 * Defers reconciliation to the end of the request, after Nextcloud has had
+	 * its chance to write config.php.
+	 *
+	 * Nextcloud instantiates \OC\Config twice while booting, so this may run
+	 * twice; reconciliation is idempotent.
+	 */
+	public function register(): void {
+		register_shutdown_function($this->reconcile(...));
+	}
+
 	public function reconcile(): void {
 		$current = $this->manager->readConfigArray($this->configFile);
 		if ($current === null) {
