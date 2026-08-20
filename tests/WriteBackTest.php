@@ -58,6 +58,88 @@ final class WriteBackTest extends TestCase {
 		);
 	}
 
+	public function testLeavesKeysTheTenantDoesNotDefineInConfigPhp(): void {
+		$this->writeConfigArray($this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE, [
+			self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop'],
+		]);
+		$bootConfig = ['loglevel' => 0, 'mail_smtphost' => 'base.example.coop'];
+		// the admin changed loglevel, which the tenant does not define
+		$this->writeConfigArray($this->configFile, ['loglevel' => 2, 'mail_smtphost' => 'base.example.coop']);
+
+		$this->writeBack($bootConfig)->reconcile();
+
+		$this->assertSame(
+			['loglevel' => 2, 'mail_smtphost' => 'base.example.coop'],
+			$this->readConfigArray($this->configFile),
+			'an instance-wide setting must stay in config.php',
+		);
+		$this->assertSame(
+			[self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop']],
+			$this->readConfigArray($this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE),
+			'the matrix must not absorb keys the tenant does not define',
+		);
+	}
+
+	public function testRemovesTheWrittenKeyFromConfigPhpWhenItWasAbsentAtBoot(): void {
+		$this->writeConfigArray($this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE, [
+			self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop'],
+		]);
+		$bootConfig = ['version' => '35.0.0.1'];
+		$this->writeConfigArray($this->configFile, ['version' => '35.0.0.1', 'mail_smtphost' => 'written.example.coop']);
+
+		$this->writeBack($bootConfig)->reconcile();
+
+		$this->assertSame(['version' => '35.0.0.1'], $this->readConfigArray($this->configFile));
+		$this->assertSame(
+			[self::PATTERN => ['mail_smtphost' => 'written.example.coop']],
+			$this->readConfigArray($this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE),
+		);
+	}
+
+	public function testDoesNotRewriteTheFilesWhenNoTenantKeyChanged(): void {
+		$matrixFile = $this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE;
+		$this->writeConfigArray($matrixFile, [self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop']]);
+		$bootConfig = ['mail_smtphost' => 'base.example.coop'];
+		$this->writeConfigArray($this->configFile, $bootConfig);
+		$configBefore = file_get_contents($this->configFile);
+		$matrixBefore = file_get_contents($matrixFile);
+
+		$this->writeBack($bootConfig)->reconcile();
+
+		$this->assertSame($configBefore, file_get_contents($this->configFile));
+		$this->assertSame($matrixBefore, file_get_contents($matrixFile));
+	}
+
+	/**
+	 * \OC\Config is instantiated twice while Nextcloud boots, so the loader
+	 * runs twice and reconciliation must be safe to repeat.
+	 */
+	public function testIsIdempotentWhenReconciledTwice(): void {
+		$matrixFile = $this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE;
+		$this->writeConfigArray($matrixFile, [self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop']]);
+		$bootConfig = ['mail_smtphost' => 'base.example.coop'];
+		$this->writeConfigArray($this->configFile, ['mail_smtphost' => 'written.example.coop']);
+
+		$this->writeBack($bootConfig)->reconcile();
+		$this->writeBack($bootConfig)->reconcile();
+
+		$this->assertSame(['mail_smtphost' => 'base.example.coop'], $this->readConfigArray($this->configFile));
+		$this->assertSame(
+			[self::PATTERN => ['mail_smtphost' => 'written.example.coop']],
+			$this->readConfigArray($matrixFile),
+		);
+	}
+
+	public function testDoesNothingWhenConfigPhpIsMissing(): void {
+		$this->writeConfigArray($this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE, [
+			self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop'],
+		]);
+
+		$this->writeBack(['mail_smtphost' => 'base.example.coop'])->reconcile();
+
+		$this->assertFileDoesNotExist($this->configFile);
+	}
+
 	/**
 	 * @param array<string,mixed> $bootConfig
 	 * @param array<string,mixed> $tenantConfig
