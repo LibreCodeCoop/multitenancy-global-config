@@ -6,17 +6,11 @@
  */
 
 /*
- * Multi-tenancy loader. Copy this file to the Nextcloud config/ directory.
+ * Multi-tenancy loader. Copy this file to the Nextcloud config/ directory and
+ * adjust the require path to where this module is installed.
  *
- * Nextcloud auto-loads every config/*.config.php file from inside
- * \OC\Config::readData(), which is what lets the module reach the config
- * instance. Keep this file a thin shim: it only says where the tenant matrix
- * lives and where the module is installed.
- *
- * Loading chain:
- *   multitenancy.database.php -> multitenancy.config.php -> src/loader.php
- *
- * Adjust the require path below to where this module is installed.
+ * Nextcloud auto-loads every config/*.config.php file; this shim only says
+ * where the tenant matrix and the module live.
  */
 
 $multitenancyConfigDir = __DIR__;

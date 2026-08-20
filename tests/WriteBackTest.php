@@ -32,7 +32,6 @@ final class WriteBackTest extends TestCase {
 		$this->writeConfigArray($this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE, [
 			self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop'],
 		]);
-		// config.php as it was at boot, and as it is after the admin wrote to it
 		$bootConfig = ['version' => '35.0.0.1', 'mail_smtphost' => 'base.example.coop'];
 		$this->writeConfigArray($this->configFile, ['version' => '35.0.0.1', 'mail_smtphost' => 'written.example.coop']);
 
@@ -64,7 +63,6 @@ final class WriteBackTest extends TestCase {
 			self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop'],
 		]);
 		$bootConfig = ['loglevel' => 0, 'mail_smtphost' => 'base.example.coop'];
-		// the admin changed loglevel, which the tenant does not define
 		$this->writeConfigArray($this->configFile, ['loglevel' => 2, 'mail_smtphost' => 'base.example.coop']);
 
 		$this->writeBack($bootConfig)->reconcile();

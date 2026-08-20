@@ -12,15 +12,14 @@ namespace LibreCode\MultiTenancyGlobalConfig;
 /**
  * Routes system config writes back to the tenant matrix.
  *
- * Nextcloud persists its whole merged config cache into config.php on every
- * write (\OC\Config::writeData()) and offers no hook before that happens. So
- * the tenant values are injected into the non-persisted channel and this class
- * reconciles config.php afterwards: a tenant key whose value changed during
- * the request was written by an admin and belongs to the tenant, so it is
- * moved into the matrix and reverted in config.php.
+ * Tenant values live in a channel Nextcloud never persists, so a write to one of
+ * them would otherwise land in config.php as instance-wide config. Nextcloud
+ * offers no hook before it writes, so reconciliation happens on shutdown: a
+ * tenant key whose value changed during the request was written by an admin, and
+ * is moved into the matrix and reverted in config.php.
  *
- * Keys the tenant does not define are left untouched in config.php: they are
- * instance-wide settings and none of the module's business.
+ * Keys the tenant does not define are left alone: they are instance-wide
+ * settings and none of this module's business.
  */
 final class WriteBack {
 	/**

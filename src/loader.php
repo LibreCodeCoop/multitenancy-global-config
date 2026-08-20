@@ -6,24 +6,14 @@
  */
 
 /*
- * Multi-tenancy loader body.
+ * Multi-tenancy loader body, included by config/multitenancy.config.php.
  *
- * Nextcloud includes config/multitenancy.config.php from inside
- * \OC\Config::readData(), and that file includes this one, so this code runs in
- * the \OC\Config class scope: $this is the config instance and its protected
- * members are reachable.
+ * Nextcloud includes that file from inside \OC\Config::readData(), so this code
+ * runs in the config class scope: $this is the \OC\Config instance. Tenant
+ * values go into $envCache, which Nextcloud reads with priority and never
+ * persists; $CONFIG would end up in config.php instance-wide on the next write.
  *
- * That is what makes a leak-free tenant config possible. Values assigned to
- * $CONFIG are merged into \OC\Config::$cache, which writeData() dumps into
- * config.php in full on every single write — so a tenant value assigned that
- * way becomes instance-wide config the moment anything calls setSystemValue().
- * $envCache, the channel behind the NC_* environment variables, is read with
- * priority and never persisted, so tenant values go there instead.
- *
- * Requires $multitenancyConfigDir to be set by the including file: the path to
- * the Nextcloud config directory holding the tenant matrix.
- *
- * @var string $multitenancyConfigDir
+ * @var string $multitenancyConfigDir path to the Nextcloud config directory
  */
 
 require_once __DIR__ . '/ConfigFile.php';
@@ -36,8 +26,6 @@ $multitenancyMatch = $multitenancyManager->getMatch($_SERVER['HTTP_HOST'] ?? 'lo
 
 if ($multitenancyMatch !== null) {
 	if (isset($this) && property_exists($this, 'envCache')) {
-		// Reconcile config.php after Nextcloud has written it: tenant keys the
-		// admin changed during this request belong in the matrix, not here.
 		(new \LibreCode\MultiTenancyGlobalConfig\WriteBack(
 			new \LibreCode\MultiTenancyGlobalConfig\ConfigFile($multitenancyConfigDir . '/config.php'),
 			$multitenancyManager->matrixFile(),
