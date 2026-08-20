@@ -20,8 +20,6 @@ final class Manager {
 	public const DEFAULT_CONFIG_FILE = 'multitenancy.database.php';
 	public const ENV_CONFIG_FILE = 'MULTITENANCY_CONFIG_FILE';
 
-	private const FILE_WARNING = "\n/*\n * This file is rewritten by multitenancy-global-config.\n * Comments and formatting are lost when that happens.\n */\n";
-
 	public function __construct(
 		private string $configDir,
 	) {
@@ -71,94 +69,18 @@ final class Manager {
 	}
 
 	/**
-	 * Reads the matrix file, mapping host regex patterns to tenant configs.
-	 *
+	 * The tenant matrix file. Its name can be overridden with the
+	 * MULTITENANCY_CONFIG_FILE environment variable.
+	 */
+	public function matrixFile(): ConfigFile {
+		$fileName = getenv(self::ENV_CONFIG_FILE) ?: self::DEFAULT_CONFIG_FILE;
+		return new ConfigFile($this->configDir . '/' . $fileName);
+	}
+
+	/**
 	 * @return array<string,array<string,mixed>>
 	 */
-	public function readMatrix(): array {
-		return $this->readConfigArray($this->matrixPath()) ?? [];
-	}
-
-	/**
-	 * @param array<string,array<string,mixed>> $matrix
-	 */
-	public function writeMatrix(array $matrix): void {
-		$this->writeConfigArray($this->matrixPath(), $matrix);
-	}
-
-	/**
-	 * Reads a PHP config file. Mirrors \OC\Config::readData(): include the
-	 * file and pick up the $CONFIG variable it defines. Returns null when the
-	 * file is missing or defines no $CONFIG array.
-	 *
-	 * @return array<string,mixed>|null
-	 */
-	public function readConfigArray(string $file): ?array {
-		if (!file_exists($file)) {
-			return null;
-		}
-
-		if (function_exists('opcache_invalidate')) {
-			@opcache_invalidate($file, true);
-		}
-
-		unset($CONFIG);
-		include $file;
-
-		return isset($CONFIG) && is_array($CONFIG) ? $CONFIG : null;
-	}
-
-	/**
-	 * Writes a PHP config file, holding an exclusive lock while doing so.
-	 * Everything the file had before its $CONFIG assignment is preserved, so
-	 * hand-written comments survive a rewrite.
-	 *
-	 * @param array<string,mixed> $data
-	 */
-	public function writeConfigArray(string $file, array $data): void {
-		$content = $this->headerOf($file) . '$CONFIG = ' . var_export($data, true) . ";\n";
-
-		$pointer = fopen($file, 'c+');
-		if ($pointer === false) {
-			throw new \RuntimeException(sprintf('Could not open %s for writing', $file));
-		}
-
-		try {
-			if (!flock($pointer, LOCK_EX)) {
-				throw new \RuntimeException(sprintf('Could not acquire an exclusive lock on %s', $file));
-			}
-			ftruncate($pointer, 0);
-			fwrite($pointer, $content);
-			fflush($pointer);
-			flock($pointer, LOCK_UN);
-		} finally {
-			fclose($pointer);
-		}
-
-		if (function_exists('opcache_invalidate')) {
-			@opcache_invalidate($file, true);
-		}
-	}
-
-	/**
-	 * Returns everything preceding the file's $CONFIG assignment, or a default
-	 * header when the file has none yet.
-	 *
-	 * The assignment is matched at the start of a line, because Nextcloud's own
-	 * warning block quotes "$CONFIG = [];" inside a comment.
-	 */
-	private function headerOf(string $file): string {
-		$existing = file_exists($file) ? (string)file_get_contents($file) : '';
-
-		if (preg_match('/^\$CONFIG\s*=/m', $existing, $matches, PREG_OFFSET_CAPTURE) === 1) {
-			return substr($existing, 0, $matches[0][1]);
-		}
-
-		return "<?php\n" . self::FILE_WARNING;
-	}
-
-	private function matrixPath(): string {
-		$fileName = getenv(self::ENV_CONFIG_FILE) ?: self::DEFAULT_CONFIG_FILE;
-		return $this->configDir . '/' . $fileName;
+	private function readMatrix(): array {
+		return $this->matrixFile()->read() ?? [];
 	}
 }

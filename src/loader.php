@@ -26,6 +26,7 @@
  * @var string $multitenancyConfigDir
  */
 
+require_once __DIR__ . '/ConfigFile.php';
 require_once __DIR__ . '/Manager.php';
 require_once __DIR__ . '/TenantMatch.php';
 require_once __DIR__ . '/WriteBack.php';
@@ -38,9 +39,9 @@ if ($multitenancyMatch !== null) {
 		// Reconcile config.php after Nextcloud has written it: tenant keys the
 		// admin changed during this request belong in the matrix, not here.
 		(new \LibreCode\MultiTenancyGlobalConfig\WriteBack(
-			$multitenancyManager,
+			new \LibreCode\MultiTenancyGlobalConfig\ConfigFile($multitenancyConfigDir . '/config.php'),
+			$multitenancyManager->matrixFile(),
 			$multitenancyMatch,
-			$multitenancyConfigDir . '/config.php',
 			$this->cache,
 		))->register();
 

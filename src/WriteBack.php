@@ -24,13 +24,13 @@ namespace LibreCode\MultiTenancyGlobalConfig;
  */
 final class WriteBack {
 	/**
-	 * @param string $configFile path to the Nextcloud config.php
+	 * @param ConfigFile $nextcloudConfig the Nextcloud config.php
 	 * @param array<string,mixed> $bootConfig config.php contents at boot
 	 */
 	public function __construct(
-		private Manager $manager,
+		private ConfigFile $nextcloudConfig,
+		private ConfigFile $matrix,
 		private TenantMatch $match,
-		private string $configFile,
 		private array $bootConfig,
 	) {
 	}
@@ -47,7 +47,7 @@ final class WriteBack {
 	}
 
 	public function reconcile(): void {
-		$current = $this->manager->readConfigArray($this->configFile);
+		$current = $this->nextcloudConfig->read();
 		if ($current === null) {
 			return;
 		}
@@ -73,11 +73,11 @@ final class WriteBack {
 			return;
 		}
 
-		$matrix = $this->manager->readMatrix();
+		$matrix = $this->matrix->read() ?? [];
 		foreach ($writes as $key => $value) {
 			$matrix[$this->match->pattern][$key] = $value;
 		}
-		$this->manager->writeMatrix($matrix);
-		$this->manager->writeConfigArray($this->configFile, $current);
+		$this->matrix->write($matrix);
+		$this->nextcloudConfig->write($current);
 	}
 }

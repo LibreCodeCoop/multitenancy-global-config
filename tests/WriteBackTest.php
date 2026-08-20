@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace LibreCode\MultiTenancyGlobalConfig\Tests;
 
+use LibreCode\MultiTenancyGlobalConfig\ConfigFile;
 use LibreCode\MultiTenancyGlobalConfig\Manager;
 use LibreCode\MultiTenancyGlobalConfig\TenantMatch;
 use LibreCode\MultiTenancyGlobalConfig\WriteBack;
@@ -176,9 +177,9 @@ final class WriteBackTest extends TestCase {
 	 */
 	private function writeBack(array $bootConfig, array $tenantConfig = ['mail_smtphost' => 'smtp01.example.coop']): WriteBack {
 		return new WriteBack(
-			new Manager($this->configDir),
+			new ConfigFile($this->configFile),
+			(new Manager($this->configDir))->matrixFile(),
 			new TenantMatch(self::PATTERN, $tenantConfig),
-			$this->configFile,
 			$bootConfig,
 		);
 	}
