@@ -35,12 +35,22 @@ final class Manager {
 
 	/**
 	 * Returns the tenant config matching the given host, or an empty array
-	 * when there is no match. The host is normalized before matching: the
-	 * port is stripped and the name is lowercased.
+	 * when there is no match.
 	 *
 	 * @throws \RuntimeException when a matrix key is not a valid regex
 	 */
 	public function getConfig(string $host): array {
+		return $this->getMatch($host)?->config ?? [];
+	}
+
+	/**
+	 * Returns the matrix entry matching the given host, or null when there is
+	 * no match. The host is normalized before matching: the port is stripped
+	 * and the name is lowercased.
+	 *
+	 * @throws \RuntimeException when a matrix key is not a valid regex
+	 */
+	public function getMatch(string $host): ?TenantMatch {
 		$host = preg_replace('/:\d+$/', '', strtolower($host));
 		foreach ($this->readMatrix() as $pattern => $tenantConfig) {
 			$result = @preg_match($pattern, $host);
@@ -52,10 +62,10 @@ final class Manager {
 				));
 			}
 			if ($result === 1) {
-				return $tenantConfig;
+				return new TenantMatch($pattern, $tenantConfig);
 			}
 		}
-		return [];
+		return null;
 	}
 
 	/**

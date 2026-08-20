@@ -109,6 +109,28 @@ final class ManagerTest extends TestCase {
 		$manager->getConfig('domain01.example.coop');
 	}
 
+	public function testGetMatchReturnsNullWhenNoKeyMatchesTheHost(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'/^domain01\\.example\\.coop$/' => ['dbname' => 'tenant01'],
+		]);
+		$manager = new Manager($this->configDir);
+
+		$this->assertNull($manager->getMatch('unknown.example.coop'));
+	}
+
+	public function testGetMatchReturnsThePatternAndConfigOfTheMatchingKey(): void {
+		$this->writeMatrix(Manager::DEFAULT_CONFIG_FILE, [
+			'/^domain01\\./' => ['dbname' => 'tenant01'],
+		]);
+		$manager = new Manager($this->configDir);
+
+		$match = $manager->getMatch('domain01.example.coop');
+
+		$this->assertNotNull($match);
+		$this->assertSame('/^domain01\\./', $match->pattern);
+		$this->assertSame(['dbname' => 'tenant01'], $match->config);
+	}
+
 	private function writeMatrix(string $fileName, array $matrix): void {
 		file_put_contents(
 			$this->configDir . '/' . $fileName,
