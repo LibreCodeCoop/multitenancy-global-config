@@ -10,8 +10,7 @@ declare(strict_types=1);
 namespace LibreCode\MultiTenancyGlobalConfig\Tests\Fake;
 
 /**
- * A \OC\Config without envCache, standing in for a Nextcloud release that
- * dropped or renamed the non-persisted channel the loader relies on.
+ * A \OC\Config without the non-persisted channel.
  */
 class LegacyNextcloudConfig {
 	/** @param array<string,mixed> $cache */

@@ -6,12 +6,8 @@
  */
 
 /*
- * Multi-tenancy loader body, included by config/multitenancy.config.php.
- *
- * Nextcloud includes that file from inside \OC\Config::readData(), so this code
- * runs in the config class scope: $this is the \OC\Config instance. Tenant
- * values go into $envCache, which Nextcloud reads with priority and never
- * persists; $CONFIG would end up in config.php instance-wide on the next write.
+ * Included by config/multitenancy.config.php from inside \OC\Config::readData(),
+ * so this runs in the config class scope: $this is the \OC\Config instance.
  *
  * @var string $multitenancyConfigDir path to the Nextcloud config directory
  */
@@ -26,8 +22,6 @@ $multitenancyConfig = \LibreCode\MultiTenancyGlobalConfig\Manager::getConfigFrom
 if ($multitenancyConfig !== []) {
 	if (isset($this) && property_exists($this, 'envCache')) {
 		foreach ($multitenancyConfig as $multitenancyKey => $multitenancyValue) {
-			// Same merge Nextcloud applies to every *.config.php it loads, so a
-			// tenant overriding one sub-key keeps the rest of the base value.
 			$multitenancyBase = $this->cache[$multitenancyKey] ?? null;
 			$this->envCache[$multitenancyKey] = is_array($multitenancyValue) && is_array($multitenancyBase)
 				? array_replace_recursive($multitenancyBase, $multitenancyValue)

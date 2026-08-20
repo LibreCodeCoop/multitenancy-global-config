@@ -75,7 +75,6 @@ final class LoaderTest extends TestCase {
 		$this->assertSame(
 			['host' => 'base-redis', 'timeout' => 5, 'port' => 6380],
 			$config->envCache()['redis'],
-			'a tenant overriding one sub-key must inherit the rest of the base value',
 		);
 	}
 
@@ -88,11 +87,6 @@ final class LoaderTest extends TestCase {
 		$this->assertSame('smtp01.example.coop', $config->envCache()['mail_smtphost']);
 	}
 
-	/**
-	 * Lists merge by index, which is what Nextcloud itself does to every
-	 * *.config.php it loads. A tenant listing fewer entries than the base
-	 * inherits the leftovers, so tenant lists should be written in full.
-	 */
 	public function testListsMergeByIndexAsNextcloudDoes(): void {
 		$this->writeMatrix([
 			'/^domain01\.example\.coop$/' => ['trusted_domains' => ['domain01.example.coop']],
@@ -120,10 +114,6 @@ final class LoaderTest extends TestCase {
 		$this->assertSame(['class' => 'S3'], $config->envCache()['objectstore']);
 	}
 
-	/**
-	 * The merged-config property is only consulted to merge arrays over, so
-	 * losing it must degrade to using the tenant value as-is, never fail hard.
-	 */
 	public function testStillServesTheTenantWhenTheMergedConfigPropertyIsGone(): void {
 		$this->writeMatrix([
 			'/^domain01\.example\.coop$/' => ['redis' => ['port' => 6380]],
@@ -182,12 +172,7 @@ final class LoaderTest extends TestCase {
 		$this->assertStringContainsString('envCache', $warnings[0]);
 	}
 
-	/**
-	 * Runs $body with E_USER_WARNING captured instead of reported, so the
-	 * loader's fallback warning does not fail the test run.
-	 *
-	 * @return string[]
-	 */
+	/** @return string[] */
 	private function captureWarnings(callable $body): array {
 		$warnings = [];
 		set_error_handler(

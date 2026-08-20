@@ -10,8 +10,7 @@ declare(strict_types=1);
 namespace LibreCode\MultiTenancyGlobalConfig\Tests\Fake;
 
 /**
- * A \OC\Config that kept envCache but no longer has cache, standing in for a
- * Nextcloud release that renamed the merged-config property.
+ * A \OC\Config that kept envCache but no longer has cache.
  */
 class EnvCacheOnlyNextcloudConfig {
 	/** @var array<string,mixed> */

@@ -11,10 +11,6 @@ namespace LibreCode\MultiTenancyGlobalConfig\Tests\Fake;
 
 /**
  * Stands in for \OC\Config: same members the loader relies on, same visibility.
- *
- * Nextcloud includes the loader from inside \OC\Config::readData(), so it runs
- * in the class scope and can reach protected members. Including it from here
- * exercises that exact mechanism.
  */
 class NextcloudConfig {
 	/** @var array<string,mixed> */
