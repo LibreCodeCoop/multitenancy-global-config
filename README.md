@@ -17,24 +17,57 @@ configuration based on the request host.
 
 ## How it works
 
-Nextcloud automatically loads and merges every `config/*.config.php` file into
-the global `$CONFIG` (see `OC\Config::readData()`). This module leverages that:
+Nextcloud includes every `config/*.config.php` file from inside
+`OC\Config::readData()`, so the loader runs in the config class scope — `$this`
+is the `OC\Config` instance. That is what makes a leak-free tenant config
+possible:
 
 ```
-multitenancy.database.php  ->  multitenancy.config.php  ->  Nextcloud global config
-(tenant matrix, NOT            (auto-loaded loader,         (merged per request)
-auto-loaded by Nextcloud)      calls this module)
+multitenancy.database.php  ->  multitenancy.config.php  ->  src/loader.php
+(tenant matrix, NOT            (thin shim, auto-loaded      (resolves the host and
+auto-loaded by Nextcloud)      by Nextcloud)                injects the tenant config)
 ```
 
 - The **tenant matrix** lives in `config/multitenancy.database.php`. The file
   name intentionally does **not** end in `config.php`, so Nextcloud does not
   load it directly.
-- The **loader** `config/multitenancy.config.php` (auto-loaded by Nextcloud)
-  reads the request host (`$_SERVER['HTTP_HOST']`) and hands it to
-  `Manager::getConfigFromHost()`, which matches it against the
-  regex keys of the matrix and returns the matching tenant config — or an empty
-  array when nothing matches. Reading the superglobal is the loader's job, so
-  the `Manager` itself stays free of global state.
+- The **loader shim** `config/multitenancy.config.php` only points at the
+  matrix directory and this module. The body in `src/loader.php` reads the
+  request host (`$_SERVER['HTTP_HOST']`) and hands it to `Manager::getMatch()`,
+  which matches it against the regex keys of the matrix and returns the
+  matching entry — or null when nothing matches.
+
+### Why not `$CONFIG`
+
+Assigning `$CONFIG` in a `*.config.php` file merges the values into
+`OC\Config::$cache`, and `writeData()` dumps that **entire** cache into
+config.php on every single write. So one `occ config:system:set` — or
+`maintenance:repair`, an upgrade, a settings form, a background job — would
+turn the current tenant's values into instance-wide config, permanently.
+
+Instead, tenant values are written into `OC\Config::$envCache`, the channel
+behind the `NC_*` environment variables: Nextcloud reads it with priority and
+never persists it. Unlike real `NC_*` variables, which `getenv()` can only
+deliver as strings, this accepts arrays and booleans.
+
+If a future Nextcloud release drops that channel, the loader falls back to
+`$CONFIG` and raises an `E_USER_WARNING` saying so, rather than failing the
+boot silently.
+
+### Write-back
+
+Because tenant values are never persisted, a write to one of them would
+otherwise land in config.php as instance-wide config and be shadowed on the
+next request. So the loader registers a shutdown reconciliation:
+
+- A key **the tenant defines** whose value changed during the request was
+  written by an admin and belongs to the tenant: it is moved into the matched
+  matrix entry and reverted in config.php.
+- Any **other** key is left alone in config.php. Those are instance-wide
+  settings and none of this module's business.
+
+Reconciliation is idempotent, which matters because Nextcloud instantiates
+`OC\Config` twice while booting. Comments in both files survive a rewrite.
 
 ## Installation
 
@@ -47,10 +80,12 @@ git clone https://github.com/LibreCodeCoop/multitenancy-global-config.git
 ```
 
 1. Copy `examples/multitenancy.config.php` to your Nextcloud `config/`
-   directory and adjust the `require_once` path to where you cloned this
+   directory and adjust the `require` path to where you cloned this
    repository.
 2. Create `config/multitenancy.database.php` with your tenant matrix
    (see `examples/multitenancy.database.php`).
+
+The web server user needs write access to both files for write-back to work.
 
 ## Tenant matrix format
 
