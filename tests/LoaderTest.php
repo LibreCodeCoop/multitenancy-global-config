@@ -26,14 +26,19 @@ final class LoaderTest extends TestCase {
 		$this->configDir = vfsStream::url('multitenancy-loader-test');
 		$this->originalHost = $_SERVER['HTTP_HOST'] ?? null;
 		file_put_contents($this->configDir . '/config.php', '<?php $CONFIG = [];');
+		$this->writeMatrix([
+			'/^domain01\.example\.coop$/' => [
+				'mail_smtphost' => 'smtp01.example.coop',
+				'trusted_domains' => ['domain01.example.coop'],
+			],
+		]);
+	}
+
+	/** @param array<string,array<string,mixed>> $matrix */
+	private function writeMatrix(array $matrix): void {
 		file_put_contents(
 			$this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE,
-			'<?php $CONFIG = ' . var_export([
-				'/^domain01\.example\.coop$/' => [
-					'mail_smtphost' => 'smtp01.example.coop',
-					'trusted_domains' => ['domain01.example.coop'],
-				],
-			], true) . ';',
+			'<?php $CONFIG = ' . var_export($matrix, true) . ';',
 		);
 	}
 
@@ -55,6 +60,63 @@ final class LoaderTest extends TestCase {
 			'mail_smtphost' => 'smtp01.example.coop',
 			'trusted_domains' => ['domain01.example.coop'],
 		], $config->envCache());
+	}
+
+	public function testMergesTenantArraysOverTheBaseConfig(): void {
+		$this->writeMatrix([
+			'/^domain01\.example\.coop$/' => ['redis' => ['port' => 6380]],
+		]);
+		$_SERVER['HTTP_HOST'] = 'domain01.example.coop';
+		$config = new NextcloudConfig(['redis' => ['host' => 'base-redis', 'timeout' => 5]]);
+
+		$config->includeLoader(self::LOADER, $this->configDir);
+
+		$this->assertSame(
+			['host' => 'base-redis', 'timeout' => 5, 'port' => 6380],
+			$config->envCache()['redis'],
+			'a tenant overriding one sub-key must inherit the rest of the base value',
+		);
+	}
+
+	public function testReplacesBaseValuesThatAreNotArrays(): void {
+		$_SERVER['HTTP_HOST'] = 'domain01.example.coop';
+		$config = new NextcloudConfig(['mail_smtphost' => 'base.example.coop']);
+
+		$config->includeLoader(self::LOADER, $this->configDir);
+
+		$this->assertSame('smtp01.example.coop', $config->envCache()['mail_smtphost']);
+	}
+
+	/**
+	 * Lists merge by index, which is what Nextcloud itself does to every
+	 * *.config.php it loads. A tenant listing fewer entries than the base
+	 * inherits the leftovers, so tenant lists should be written in full.
+	 */
+	public function testListsMergeByIndexAsNextcloudDoes(): void {
+		$this->writeMatrix([
+			'/^domain01\.example\.coop$/' => ['trusted_domains' => ['domain01.example.coop']],
+		]);
+		$_SERVER['HTTP_HOST'] = 'domain01.example.coop';
+		$config = new NextcloudConfig(['trusted_domains' => ['base.example.coop', 'extra.example.coop']]);
+
+		$config->includeLoader(self::LOADER, $this->configDir);
+
+		$this->assertSame(
+			['domain01.example.coop', 'extra.example.coop'],
+			$config->envCache()['trusted_domains'],
+		);
+	}
+
+	public function testKeysAbsentFromTheBaseConfigAreTakenAsIs(): void {
+		$this->writeMatrix([
+			'/^domain01\.example\.coop$/' => ['objectstore' => ['class' => 'S3']],
+		]);
+		$_SERVER['HTTP_HOST'] = 'domain01.example.coop';
+		$config = new NextcloudConfig();
+
+		$config->includeLoader(self::LOADER, $this->configDir);
+
+		$this->assertSame(['class' => 'S3'], $config->envCache()['objectstore']);
 	}
 
 	public function testDoesNotDefineConfigWhenTheNonPersistedChannelIsUsed(): void {

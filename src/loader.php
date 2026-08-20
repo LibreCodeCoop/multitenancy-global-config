@@ -26,7 +26,12 @@ $multitenancyConfig = \LibreCode\MultiTenancyGlobalConfig\Manager::getConfigFrom
 if ($multitenancyConfig !== []) {
 	if (isset($this) && property_exists($this, 'envCache')) {
 		foreach ($multitenancyConfig as $multitenancyKey => $multitenancyValue) {
-			$this->envCache[$multitenancyKey] = $multitenancyValue;
+			// Same merge Nextcloud applies to every *.config.php it loads, so a
+			// tenant overriding one sub-key keeps the rest of the base value.
+			$multitenancyBase = $this->cache[$multitenancyKey] ?? null;
+			$this->envCache[$multitenancyKey] = is_array($multitenancyValue) && is_array($multitenancyBase)
+				? array_replace_recursive($multitenancyBase, $multitenancyValue)
+				: $multitenancyValue;
 		}
 	} else {
 		trigger_error(
@@ -39,4 +44,4 @@ if ($multitenancyConfig !== []) {
 	}
 }
 
-unset($multitenancyConfig, $multitenancyKey, $multitenancyValue);
+unset($multitenancyConfig, $multitenancyKey, $multitenancyValue, $multitenancyBase);
