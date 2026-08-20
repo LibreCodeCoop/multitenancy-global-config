@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace LibreCode\MultiTenancyGlobalConfig\Tests;
 
 use LibreCode\MultiTenancyGlobalConfig\Manager;
+use LibreCode\MultiTenancyGlobalConfig\Tests\Fake\EnvCacheOnlyNextcloudConfig;
 use LibreCode\MultiTenancyGlobalConfig\Tests\Fake\LegacyNextcloudConfig;
 use LibreCode\MultiTenancyGlobalConfig\Tests\Fake\NextcloudConfig;
 use org\bovigo\vfs\vfsStream;
@@ -117,6 +118,22 @@ final class LoaderTest extends TestCase {
 		$config->includeLoader(self::LOADER, $this->configDir);
 
 		$this->assertSame(['class' => 'S3'], $config->envCache()['objectstore']);
+	}
+
+	/**
+	 * The merged-config property is only consulted to merge arrays over, so
+	 * losing it must degrade to using the tenant value as-is, never fail hard.
+	 */
+	public function testStillServesTheTenantWhenTheMergedConfigPropertyIsGone(): void {
+		$this->writeMatrix([
+			'/^domain01\.example\.coop$/' => ['redis' => ['port' => 6380]],
+		]);
+		$_SERVER['HTTP_HOST'] = 'domain01.example.coop';
+		$config = new EnvCacheOnlyNextcloudConfig();
+
+		$config->includeLoader(self::LOADER, $this->configDir);
+
+		$this->assertSame(['port' => 6380], $config->envCache()['redis']);
 	}
 
 	public function testDoesNotDefineConfigWhenTheNonPersistedChannelIsUsed(): void {
