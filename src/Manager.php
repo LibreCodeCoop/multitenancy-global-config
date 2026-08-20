@@ -35,22 +35,12 @@ final class Manager {
 
 	/**
 	 * Returns the tenant config matching the given host, or an empty array
-	 * when there is no match.
+	 * when there is no match. The host is normalized before matching: the
+	 * port is stripped and the name is lowercased.
 	 *
 	 * @throws \RuntimeException when a matrix key is not a valid regex
 	 */
 	public function getConfig(string $host): array {
-		return $this->getMatch($host)?->config ?? [];
-	}
-
-	/**
-	 * Returns the matrix entry matching the given host, or null when there is
-	 * no match. The host is normalized before matching: the port is stripped
-	 * and the name is lowercased.
-	 *
-	 * @throws \RuntimeException when a matrix key is not a valid regex
-	 */
-	public function getMatch(string $host): ?TenantMatch {
 		$host = preg_replace('/:\d+$/', '', strtolower($host));
 		foreach ($this->readMatrix() as $pattern => $tenantConfig) {
 			$result = @preg_match($pattern, $host);
@@ -62,25 +52,35 @@ final class Manager {
 				));
 			}
 			if ($result === 1) {
-				return new TenantMatch($pattern, $tenantConfig);
+				return $tenantConfig;
 			}
 		}
-		return null;
+		return [];
 	}
 
 	/**
-	 * The tenant matrix file. Its name can be overridden with the
-	 * MULTITENANCY_CONFIG_FILE environment variable.
-	 */
-	public function matrixFile(): ConfigFile {
-		$fileName = getenv(self::ENV_CONFIG_FILE) ?: self::DEFAULT_CONFIG_FILE;
-		return new ConfigFile($this->configDir . '/' . $fileName);
-	}
-
-	/**
+	 * Reads the matrix file, mapping host regex patterns to tenant configs.
+	 * Reading mirrors \OC\Config::readData(): include the file and pick up
+	 * the $CONFIG variable it defines.
+	 *
 	 * @return array<string,array<string,mixed>>
 	 */
 	private function readMatrix(): array {
-		return $this->matrixFile()->read() ?? [];
+		$fileName = getenv(self::ENV_CONFIG_FILE) ?: self::DEFAULT_CONFIG_FILE;
+		$file = $this->configDir . '/' . $fileName;
+		if (!file_exists($file)) {
+			return [];
+		}
+
+		if (function_exists('opcache_invalidate')) {
+			@opcache_invalidate($file, false);
+		}
+
+		include $file;
+
+		if (!isset($CONFIG) || !is_array($CONFIG)) {
+			return [];
+		}
+		return $CONFIG;
 	}
 }

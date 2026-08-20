@@ -16,24 +16,16 @@
  * @var string $multitenancyConfigDir path to the Nextcloud config directory
  */
 
-require_once __DIR__ . '/ConfigFile.php';
 require_once __DIR__ . '/Manager.php';
-require_once __DIR__ . '/TenantMatch.php';
-require_once __DIR__ . '/WriteBack.php';
 
-$multitenancyManager = new \LibreCode\MultiTenancyGlobalConfig\Manager($multitenancyConfigDir);
-$multitenancyMatch = $multitenancyManager->getMatch($_SERVER['HTTP_HOST'] ?? 'localhost');
+$multitenancyConfig = \LibreCode\MultiTenancyGlobalConfig\Manager::getConfigFromHost(
+	$multitenancyConfigDir,
+	$_SERVER['HTTP_HOST'] ?? 'localhost',
+);
 
-if ($multitenancyMatch !== null) {
+if ($multitenancyConfig !== []) {
 	if (isset($this) && property_exists($this, 'envCache')) {
-		(new \LibreCode\MultiTenancyGlobalConfig\WriteBack(
-			new \LibreCode\MultiTenancyGlobalConfig\ConfigFile($multitenancyConfigDir . '/config.php'),
-			$multitenancyManager->matrixFile(),
-			$multitenancyMatch,
-			$this->cache,
-		))->register();
-
-		foreach ($multitenancyMatch->config as $multitenancyKey => $multitenancyValue) {
+		foreach ($multitenancyConfig as $multitenancyKey => $multitenancyValue) {
 			$this->envCache[$multitenancyKey] = $multitenancyValue;
 		}
 	} else {
@@ -43,8 +35,8 @@ if ($multitenancyMatch !== null) {
 			. 'config.php on the next system config write.',
 			E_USER_WARNING,
 		);
-		$CONFIG = $multitenancyMatch->config;
+		$CONFIG = $multitenancyConfig;
 	}
 }
 
-unset($multitenancyManager, $multitenancyMatch, $multitenancyKey, $multitenancyValue);
+unset($multitenancyConfig, $multitenancyKey, $multitenancyValue);
