@@ -54,20 +54,40 @@ If a future Nextcloud release drops that channel, the loader falls back to
 `$CONFIG` and raises an `E_USER_WARNING` saying so, rather than failing the
 boot silently.
 
-### Write-back
+### How tenant values merge
 
-Because tenant values are never persisted, a write to one of them would
-otherwise land in config.php as instance-wide config and be shadowed on the
-next request. So the loader registers a shutdown reconciliation:
+A tenant value that is an array is merged over the base value with
+`array_replace_recursive`, exactly as Nextcloud merges every `*.config.php` it
+loads. So a tenant overriding `redis.port` keeps the base `redis.host`.
 
-- A key **the tenant defines** whose value changed during the request was
-  written by an admin and belongs to the tenant: it is moved into the matched
-  matrix entry and reverted in config.php.
-- Any **other** key is left alone in config.php. Those are instance-wide
-  settings and none of this module's business.
+Lists merge by index, which is the same rule — a tenant listing fewer entries
+than the base inherits the leftovers. Write tenant lists in full, especially
+`trusted_domains`.
 
-Reconciliation is idempotent, which matters because Nextcloud instantiates
-`OC\Config` twice while booting. Comments in both files survive a rewrite.
+### Changing tenant config
+
+Tenant config is read-only from Nextcloud's point of view: `occ
+config:system:set`, `occ config:system:delete` and the admin settings forms
+write to config.php, instance-wide, and the tenant value keeps shadowing them.
+Nextcloud reports success either way, so the change silently does nothing for
+that tenant.
+
+Change tenant config by editing the matrix file.
+
+This is a limit of what a module can do from outside. `OC\Config::set()` and
+`delete()` decide whether to write by comparing against the instance-wide
+cache, which never holds the tenant value, so a tenant write can be dropped
+before it ever reaches disk — with no trace for the module to act on. Routing
+those writes correctly needs a hook inside `OC\Config`, which does not exist
+yet.
+
+### Known limits
+
+- A tenant value of `null` is ignored: Nextcloud probes the channel with
+  `isset()`, so the base value applies. Omit the key instead.
+- Other `*.config.php` files still get flattened into config.php by Nextcloud
+  on the next write. That is upstream behaviour and unrelated to tenants, but
+  it is why config.php keeps changing.
 
 ## Installation
 
@@ -84,8 +104,6 @@ git clone https://github.com/LibreCodeCoop/multitenancy-global-config.git
    repository.
 2. Create `config/multitenancy.database.php` with your tenant matrix
    (see `examples/multitenancy.database.php`).
-
-The web server user needs write access to both files for write-back to work.
 
 ## Tenant matrix format
 
