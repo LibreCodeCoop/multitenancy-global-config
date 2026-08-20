@@ -140,6 +140,36 @@ final class WriteBackTest extends TestCase {
 		$this->assertFileDoesNotExist($this->configFile);
 	}
 
+	public function testPreservesTheExistingHeaderOfConfigPhp(): void {
+		$matrixFile = $this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE;
+		$this->writeConfigArray($matrixFile, [self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop']]);
+		$bootConfig = ['mail_smtphost' => 'base.example.coop'];
+		// Nextcloud's own warning block mentions $CONFIG inside a comment
+		$header = "<?php\n/*\n * WARNING\n *\n * Example:\n *   <?php\n *   \$CONFIG = [];\n */\n";
+		file_put_contents($this->configFile, $header . '$CONFIG = ' . var_export(['mail_smtphost' => 'written.example.coop'], true) . ";\n");
+
+		$this->writeBack($bootConfig)->reconcile();
+
+		$this->assertStringStartsWith($header, file_get_contents($this->configFile));
+		$this->assertSame(['mail_smtphost' => 'base.example.coop'], $this->readConfigArray($this->configFile));
+	}
+
+	public function testPreservesCommentsInTheMatrixFile(): void {
+		$matrixFile = $this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE;
+		$header = "<?php\n// tenant matrix, hand maintained\n";
+		file_put_contents($matrixFile, $header . '$CONFIG = ' . var_export([self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop']], true) . ";\n");
+		$bootConfig = ['mail_smtphost' => 'base.example.coop'];
+		$this->writeConfigArray($this->configFile, ['mail_smtphost' => 'written.example.coop']);
+
+		$this->writeBack($bootConfig)->reconcile();
+
+		$this->assertStringStartsWith($header, file_get_contents($matrixFile));
+		$this->assertSame(
+			[self::PATTERN => ['mail_smtphost' => 'written.example.coop']],
+			$this->readConfigArray($matrixFile),
+		);
+	}
+
 	/**
 	 * @param array<string,mixed> $bootConfig
 	 * @param array<string,mixed> $tenantConfig

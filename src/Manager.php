@@ -110,11 +110,13 @@ final class Manager {
 
 	/**
 	 * Writes a PHP config file, holding an exclusive lock while doing so.
+	 * Everything the file had before its $CONFIG assignment is preserved, so
+	 * hand-written comments survive a rewrite.
 	 *
 	 * @param array<string,mixed> $data
 	 */
 	public function writeConfigArray(string $file, array $data): void {
-		$content = "<?php\n" . self::FILE_WARNING . '$CONFIG = ' . var_export($data, true) . ";\n";
+		$content = $this->headerOf($file) . '$CONFIG = ' . var_export($data, true) . ";\n";
 
 		$pointer = fopen($file, 'c+');
 		if ($pointer === false) {
@@ -136,6 +138,23 @@ final class Manager {
 		if (function_exists('opcache_invalidate')) {
 			@opcache_invalidate($file, true);
 		}
+	}
+
+	/**
+	 * Returns everything preceding the file's $CONFIG assignment, or a default
+	 * header when the file has none yet.
+	 *
+	 * The assignment is matched at the start of a line, because Nextcloud's own
+	 * warning block quotes "$CONFIG = [];" inside a comment.
+	 */
+	private function headerOf(string $file): string {
+		$existing = file_exists($file) ? (string)file_get_contents($file) : '';
+
+		if (preg_match('/^\$CONFIG\s*=/m', $existing, $matches, PREG_OFFSET_CAPTURE) === 1) {
+			return substr($existing, 0, $matches[0][1]);
+		}
+
+		return "<?php\n" . self::FILE_WARNING;
 	}
 
 	private function matrixPath(): string {
