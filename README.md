@@ -33,9 +33,10 @@ auto-loaded by Nextcloud)      by Nextcloud)                injects the tenant c
   load it directly.
 - The **loader shim** `config/multitenancy.config.php` only points at the
   matrix directory and this module. The body in `src/loader.php` reads the
-  request host (`$_SERVER['HTTP_HOST']`) and hands it to `Manager::getMatch()`,
-  which matches it against the regex keys of the matrix and returns the
-  matching entry — or null when nothing matches.
+  request host (`$_SERVER['HTTP_HOST']`) and hands it to
+  `Manager::getConfigFromHost()`, which matches it against the regex keys of
+  the matrix and returns the matching entry — or an empty array when nothing
+  matches.
 
 ### Why not `$CONFIG`
 
