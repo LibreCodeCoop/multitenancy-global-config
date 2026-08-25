@@ -31,6 +31,20 @@ class NextcloudConfig {
 		return $CONFIG ?? null;
 	}
 
+	/**
+	 * Includes the config shim the way Nextcloud does, without handing it a
+	 * config directory: the shim takes its own.
+	 *
+	 * @return string|null the module loader the shim required, if any
+	 */
+	public function includeShim(string $shimFile): ?string {
+		$multitenancyRequiredLoader = null;
+
+		include $shimFile;
+
+		return $multitenancyRequiredLoader;
+	}
+
 	/** @return array<string,mixed> */
 	public function envCache(): array {
 		return $this->envCache;

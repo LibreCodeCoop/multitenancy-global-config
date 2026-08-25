@@ -38,6 +38,20 @@ auto-loaded by Nextcloud)      by Nextcloud)                injects the tenant c
   the matrix and returns the matching entry — or an empty array when nothing
   matches.
 
+### How the shim finds the module
+
+The shim carries no path to this module: it looks for it in the app
+directories the instance is configured with. Nextcloud only resolves those
+into `OC::$APPSROOTS` *after* the config is read, so the shim reads
+`apps_paths` from the config merged so far — `config.php` is loaded before any
+`*.config.php`, which is where `apps_paths` is set — and falls back to the
+default `apps/` directory when it is not set, the same as Nextcloud does.
+
+Nothing is looked up by app id, so this module is not a Nextcloud app and does
+not need enabling; the directory only has to sit in one of those paths. If it
+is in none of them, the shim raises an `E_USER_WARNING` naming the directories
+it searched, rather than silently serving every tenant the base config.
+
 ### Why not `$CONFIG`
 
 Assigning `$CONFIG` in a `*.config.php` file merges the values into
@@ -92,19 +106,23 @@ yet.
 
 ## Installation
 
-This module is location-agnostic: clone it (or add it as a git submodule)
-anywhere the PHP process can read — inside or outside the Nextcloud webroot —
-and adjust the `require` path in the loader accordingly.
+1. Clone this module (or add it as a git submodule) into any of the app
+   directories of your instance — whatever `apps_paths` lists in `config.php`,
+   or `apps/` when it lists nothing:
 
-```bash
-git clone https://github.com/LibreCodeCoop/multitenancy-global-config.git
-```
+   ```bash
+   cd /path/to/nextcloud/apps
+   git clone https://github.com/LibreCodeCoop/multitenancy-global-config.git
+   ```
 
-1. Copy `examples/multitenancy.config.php` to your Nextcloud `config/`
-   directory and adjust the `require` path to where you cloned this
-   repository.
-2. Create `config/multitenancy.database.php` with your tenant matrix
+2. Copy `examples/multitenancy.config.php` to your Nextcloud `config/`
+   directory, as is — it finds the module by itself.
+3. Create `config/multitenancy.database.php` with your tenant matrix
    (see `examples/multitenancy.database.php`).
+
+To keep the module somewhere else entirely — outside the webroot, say — it is
+still location-agnostic: in the copied shim, replace the lookup with a plain
+`require` of the module's `src/loader.php`.
 
 ## Tenant matrix format
 

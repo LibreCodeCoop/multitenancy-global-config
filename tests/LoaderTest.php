@@ -17,6 +17,8 @@ use org\bovigo\vfs\vfsStream;
 use PHPUnit\Framework\TestCase;
 
 final class LoaderTest extends TestCase {
+	use CapturesWarnings;
+
 	private const LOADER = __DIR__ . '/../src/loader.php';
 
 	private string $configDir;
@@ -170,25 +172,5 @@ final class LoaderTest extends TestCase {
 
 		$this->assertCount(1, $warnings);
 		$this->assertStringContainsString('envCache', $warnings[0]);
-	}
-
-	/** @return string[] */
-	private function captureWarnings(callable $body): array {
-		$warnings = [];
-		set_error_handler(
-			function (int $severity, string $message) use (&$warnings): bool {
-				$warnings[] = $message;
-				return true;
-			},
-			E_USER_WARNING,
-		);
-
-		try {
-			$body();
-		} finally {
-			restore_error_handler();
-		}
-
-		return $warnings;
 	}
 }
