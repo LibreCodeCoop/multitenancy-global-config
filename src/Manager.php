@@ -62,12 +62,18 @@ final class Manager {
 	 * Reads the matrix file, mapping host regex patterns to tenant configs.
 	 * Reading mirrors \OC\Config::readData(): include the file and pick up
 	 * the $CONFIG variable it defines.
+	 *
+	 * @return array<string,array<string,mixed>>
 	 */
 	private function readMatrix(): array {
 		$fileName = getenv(self::ENV_CONFIG_FILE) ?: self::DEFAULT_CONFIG_FILE;
 		$file = $this->configDir . '/' . $fileName;
 		if (!file_exists($file)) {
 			return [];
+		}
+
+		if (function_exists('opcache_invalidate')) {
+			@opcache_invalidate($file, false);
 		}
 
 		include $file;
