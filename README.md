@@ -81,20 +81,32 @@ than the base inherits the leftovers. Write tenant lists in full, especially
 
 ### Changing tenant config
 
-Tenant config is read-only from Nextcloud's point of view: `occ
-config:system:set`, `occ config:system:delete` and the admin settings forms
-write to config.php, instance-wide, and the tenant value keeps shadowing them.
-Nextcloud reports success either way, so the change silently does nothing for
-that tenant.
+Writes made while a tenant is served — `occ config:system:set` and
+`config:system:delete`, the admin settings forms, background jobs — go where
+they belong:
 
-Change tenant config by editing the matrix file.
+- a key the tenant defines is written to the tenant's entry in the matrix
+  file, and config.php keeps its own value for it;
+- any other key is an instance-wide setting and is written to config.php, as
+  usual.
 
-This is a limit of what a module can do from outside. `OC\Config::set()` and
-`delete()` decide whether to write by comparing against the instance-wide
-cache, which never holds the tenant value, so a tenant write can be dropped
-before it ever reaches disk — with no trace for the module to act on. Routing
-those writes correctly needs a hook inside `OC\Config`, which does not exist
-yet.
+`OC\Config::writeData()` has no hook, but it writes through its
+`configFilePath` property. The loader points that property at a stream
+wrapper, so every config.php write reaches the module as it happens, with the
+whole config Nextcloud is persisting. The tenant values are also loaded into
+`OC\Config::$cache`, so `set()` compares against the value the admin sees: a
+settings form saved untouched writes nothing for the tenant, and a tenant
+value set back to the base value is not dropped.
+
+A tenant key still holding the value it was served with was not written by
+the request. That includes a value another `*.config.php` loaded after the
+shim merged over it, so such a file never ends up in the matrix.
+
+Deleting a tenant key removes it from the matrix entry, and the tenant falls
+back to the base value.
+
+Writes made for a host no tenant matches, such as `occ` without `HTTP_HOST`,
+are left to Nextcloud untouched.
 
 ### Known limits
 
@@ -103,6 +115,11 @@ yet.
 - Other `*.config.php` files still get flattened into config.php by Nextcloud
   on the next write. That is upstream behaviour and unrelated to tenants, but
   it is why config.php keeps changing.
+- Writing back a tenant matrix rewrites it with `var_export()`: everything
+  before its `$CONFIG` assignment is kept, but comments inside the array are
+  lost.
+- The web server needs write access to the matrix file, as it already has to
+  config.php.
 
 ## Installation
 
