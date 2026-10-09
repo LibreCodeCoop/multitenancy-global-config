@@ -18,6 +18,7 @@
  */
 
 $multitenancyConfigDir = __DIR__;
+$multitenancyShimFile = __FILE__;
 
 /*
  * Nextcloud only resolves its app directories after reading the config, so
@@ -49,6 +50,7 @@ if ($multitenancyLoader === null) {
 
 unset(
 	$multitenancyConfigDir,
+	$multitenancyShimFile,
 	$multitenancyAppDirs,
 	$multitenancyAppDir,
 	$multitenancyFound,

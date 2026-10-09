@@ -9,10 +9,12 @@ declare(strict_types=1);
 
 namespace LibreCode\MultiTenancyGlobalConfig\Tests;
 
+use LibreCode\MultiTenancyGlobalConfig\ConfigFile;
 use LibreCode\MultiTenancyGlobalConfig\Manager;
 use LibreCode\MultiTenancyGlobalConfig\Tests\Fake\EnvCacheOnlyNextcloudConfig;
 use LibreCode\MultiTenancyGlobalConfig\Tests\Fake\LegacyNextcloudConfig;
 use LibreCode\MultiTenancyGlobalConfig\Tests\Fake\NextcloudConfig;
+use LibreCode\MultiTenancyGlobalConfig\Tests\Fake\WritingNextcloudConfig;
 use org\bovigo\vfs\vfsStream;
 use PHPUnit\Framework\TestCase;
 
@@ -145,6 +147,83 @@ final class LoaderTest extends TestCase {
 
 		$this->assertSame([], $config->envCache());
 		$this->assertNull($defined);
+	}
+
+	public function testKeepsTenantValuesOutOfConfigPhpWhenAnotherKeyIsWritten(): void {
+		$config = $this->writingConfigServing('domain01.example.coop');
+
+		$config->setValues(['loglevel' => 2]);
+
+		$this->assertSame(
+			['version' => '36.0.0.0', 'mail_smtphost' => 'base.example.coop', 'loglevel' => 2],
+			$this->readConfigPhp(),
+		);
+	}
+
+	public function testKeepsTenantValuesOutOfConfigPhpWhenTheServedValuesAreWrittenBack(): void {
+		$config = $this->writingConfigServing('domain01.example.coop');
+
+		$config->setValues(['mail_smtphost' => 'smtp01.example.coop', 'loglevel' => 2]);
+
+		$this->assertSame(
+			['version' => '36.0.0.0', 'mail_smtphost' => 'base.example.coop', 'loglevel' => 2],
+			$this->readConfigPhp(),
+		);
+	}
+
+	public function testRoutesAWrittenTenantKeyToTheMatrix(): void {
+		$config = $this->writingConfigServing('domain01.example.coop');
+
+		$config->setValues(['mail_smtphost' => 'written.example.coop']);
+
+		$this->assertSame('written.example.coop', $this->readMatrix()['/^domain01\.example\.coop$/']['mail_smtphost']);
+		$this->assertSame('base.example.coop', $this->readConfigPhp()['mail_smtphost']);
+		$this->assertSame('written.example.coop', $config->getValue('mail_smtphost'));
+	}
+
+	public function testRoutesATenantWriteOfTheBaseValueToTheMatrix(): void {
+		$config = $this->writingConfigServing('domain01.example.coop');
+
+		$config->setValues(['mail_smtphost' => 'base.example.coop']);
+
+		$this->assertSame('base.example.coop', $this->readMatrix()['/^domain01\.example\.coop$/']['mail_smtphost']);
+	}
+
+	public function testServesTheBaseValueOnceADeletedTenantKeyIsGone(): void {
+		$config = $this->writingConfigServing('domain01.example.coop');
+
+		$config->setValues(['trusted_domains' => null]);
+
+		$this->assertArrayNotHasKey('trusted_domains', $this->readMatrix()['/^domain01\.example\.coop$/']);
+		$this->assertNull($config->getValue('trusted_domains'));
+	}
+
+	public function testLeavesConfigPhpWritesAloneWhenNoTenantMatches(): void {
+		$config = $this->writingConfigServing('unknown.example.coop');
+
+		$this->assertSame($this->configDir . '/config.php', $config->configFilePath());
+	}
+
+	private function writingConfigServing(string $host): WritingNextcloudConfig {
+		file_put_contents(
+			$this->configDir . '/config.php',
+			'<?php $CONFIG = ' . var_export(['version' => '36.0.0.0', 'mail_smtphost' => 'base.example.coop'], true) . ';',
+		);
+		$_SERVER['HTTP_HOST'] = $host;
+		$config = new WritingNextcloudConfig($this->configDir . '/config.php');
+		$config->includeLoader(self::LOADER, $this->configDir);
+
+		return $config;
+	}
+
+	/** @return array<string,mixed> */
+	private function readConfigPhp(): array {
+		return (new ConfigFile($this->configDir . '/config.php'))->read() ?? [];
+	}
+
+	/** @return array<string,array<string,mixed>> */
+	private function readMatrix(): array {
+		return (new ConfigFile($this->configDir . '/' . Manager::DEFAULT_CONFIG_FILE))->read() ?? [];
 	}
 
 	public function testFallsBackToConfigWhenTheNonPersistedChannelIsGone(): void {
