@@ -26,6 +26,8 @@ final class ShimTest extends TestCase {
 	private const SHIM = __DIR__ . '/../examples/multitenancy.config.php';
 	private const APPS = __DIR__ . '/fixtures/apps';
 	private const APPS_EXTRA = __DIR__ . '/fixtures/apps-extra';
+	private const APPS_WITH_BACKUP = __DIR__ . '/fixtures/apps-with-backup';
+	private const APPS_WITH_COPIES = __DIR__ . '/fixtures/apps-with-copies';
 
 	public function testRequiresTheModuleFromAConfiguredAppDirectory(): void {
 		$config = new NextcloudConfig(['apps_paths' => [
@@ -65,5 +67,34 @@ final class ShimTest extends TestCase {
 
 		$this->assertCount(1, $warnings);
 		$this->assertStringContainsString(dirname(realpath(self::SHIM)) . '/../apps', $warnings[0]);
+	}
+
+	public function testPrefersTheModuleDirectoryOverACopyNamedAfterIt(): void {
+		$config = new NextcloudConfig(['apps_paths' => [
+			['path' => self::APPS_WITH_BACKUP, 'url' => '/apps'],
+		]]);
+
+		$required = null;
+		$warnings = $this->captureWarnings(function () use ($config, &$required): void {
+			$required = $config->includeShim(self::SHIM);
+		});
+
+		$this->assertSame(self::APPS_WITH_BACKUP . '/multitenancy-global-config/src/loader.php', $required);
+		$this->assertSame([], $warnings);
+	}
+
+	public function testWarnsWhenSeveralCopiesMatchAndNoneIsNamedExactly(): void {
+		$config = new NextcloudConfig(['apps_paths' => [
+			['path' => self::APPS_WITH_COPIES, 'url' => '/apps'],
+		]]);
+
+		$required = null;
+		$warnings = $this->captureWarnings(function () use ($config, &$required): void {
+			$required = $config->includeShim(self::SHIM);
+		});
+
+		$this->assertSame(self::APPS_WITH_COPIES . '/backup-multitenancy-global-config/src/loader.php', $required);
+		$this->assertCount(1, $warnings);
+		$this->assertStringContainsString('old-multitenancy-global-config', $warnings[0]);
 	}
 }

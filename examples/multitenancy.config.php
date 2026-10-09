@@ -22,19 +22,34 @@ $multitenancyShimFile = __FILE__;
 
 /*
  * Nextcloud only resolves its app directories after reading the config, so
- * take them from the config it has merged so far -- config.php comes first,
- * and that is where apps_paths is defined.
+ * take them from the config it has merged so far: apps_paths is set either in
+ * config.php or, as on the official image, in apps.config.php, and both are
+ * read before this file.
  */
 $multitenancyAppDirs = array_column($this->cache['apps_paths'] ?? [], 'path')
 	?: [__DIR__ . '/../apps'];
 
-$multitenancyLoader = null;
-foreach ($multitenancyAppDirs as $multitenancyAppDir) {
-	$multitenancyFound = glob($multitenancyAppDir . '/*multitenancy-global-config/src/loader.php') ?: [];
+$multitenancyFound = [];
+foreach (['multitenancy-global-config', '*multitenancy-global-config'] as $multitenancyDirName) {
+	foreach ($multitenancyAppDirs as $multitenancyAppDir) {
+		$multitenancyFound = array_merge(
+			$multitenancyFound,
+			glob($multitenancyAppDir . '/' . $multitenancyDirName . '/src/loader.php') ?: [],
+		);
+	}
 	if ($multitenancyFound !== []) {
-		$multitenancyLoader = $multitenancyFound[0];
 		break;
 	}
+}
+$multitenancyLoader = $multitenancyFound[0] ?? null;
+
+if (count($multitenancyFound) > 1) {
+	trigger_error(
+		'multitenancy-global-config: several copies of the module were found ('
+		. implode(', ', $multitenancyFound)
+		. '); loading ' . $multitenancyLoader . '.',
+		E_USER_WARNING,
+	);
 }
 
 if ($multitenancyLoader === null) {
@@ -53,6 +68,7 @@ unset(
 	$multitenancyShimFile,
 	$multitenancyAppDirs,
 	$multitenancyAppDir,
+	$multitenancyDirName,
 	$multitenancyFound,
 	$multitenancyLoader,
 );
