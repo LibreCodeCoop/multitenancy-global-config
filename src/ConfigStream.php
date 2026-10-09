@@ -74,10 +74,10 @@ final class ConfigStream {
 			return true;
 		}
 
+		$this->dirty = false;
 		$target = self::$targets[$this->id];
 		$target['writes']->persist(($target['read'])(), ConfigFile::headerOf($this->buffer));
 		($target['serve'])($target['writes']);
-		$this->dirty = false;
 
 		return true;
 	}
