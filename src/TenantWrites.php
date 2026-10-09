@@ -25,10 +25,14 @@ final class TenantWrites {
 	private array $keys;
 
 	/** @var array<string,mixed>|null */
+	private ?array $later = null;
+
+	/** @var array<string,mixed>|null */
 	private ?array $loaded = null;
 
 	/**
 	 * @param array<string,mixed> $served the tenant values being served, merged over the base config
+	 * @param array<string,mixed> $base the base values of the tenant keys, before the tenant merged over them
 	 * @param list<ConfigFile> $laterConfigFiles the *.config.php files Nextcloud loads after the shim
 	 */
 	public function __construct(
@@ -36,6 +40,7 @@ final class TenantWrites {
 		private ConfigFile $matrix,
 		private string $pattern,
 		private array $served,
+		private array $base,
 		private array $laterConfigFiles,
 	) {
 		$this->keys = array_keys($served);
@@ -46,31 +51,32 @@ final class TenantWrites {
 	 * @param string|null $header the header Nextcloud wrote before $CONFIG
 	 */
 	public function persist(array $written, ?string $header = null): void {
-		$base = $this->configPhp->read() ?? [];
-		$tenantWrites = [];
-		$tenantDeletes = [];
+		$this->configPhp->update(function (?array $configPhp) use ($written): array {
+			$tenantWrites = [];
+			$tenantDeletes = [];
 
-		foreach ($this->keys as $key) {
-			if (!array_key_exists($key, $written)) {
-				if (array_key_exists($key, $this->served)) {
+			foreach ($this->keys as $key) {
+				if (array_key_exists($key, $written)) {
+					if (!$this->isLoadedValue($key, $written[$key])) {
+						$tenantWrites[$key] = $written[$key];
+					}
+				} elseif (array_key_exists($key, $this->served)) {
 					$tenantDeletes[] = $key;
 				}
-			} elseif (!$this->isLoadedValue($key, $written[$key])) {
-				$tenantWrites[$key] = $written[$key];
+
+				if (array_key_exists($key, $configPhp ?? [])) {
+					$written[$key] = $configPhp[$key];
+				} else {
+					unset($written[$key]);
+				}
 			}
 
-			if (array_key_exists($key, $base)) {
-				$written[$key] = $base[$key];
-			} else {
-				unset($written[$key]);
+			if ($tenantWrites !== [] || $tenantDeletes !== []) {
+				$this->writeMatrixEntry($tenantWrites, $tenantDeletes);
 			}
-		}
 
-		if ($tenantWrites !== [] || $tenantDeletes !== []) {
-			$this->writeMatrixEntry($tenantWrites, $tenantDeletes);
-		}
-
-		$this->configPhp->write($written, $header);
+			return $written;
+		}, $header);
 	}
 
 	/**
@@ -91,32 +97,48 @@ final class TenantWrites {
 		return array_values(array_diff($this->keys, array_keys($this->served)));
 	}
 
+	/**
+	 * The base values that apply again to the deleted tenant keys.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function restored(): array {
+		return array_intersect_key($this->loaded(), array_flip($this->removed()));
+	}
+
 	private function isLoadedValue(string $key, mixed $value): bool {
-		if (!array_key_exists($key, $this->served)) {
-			return false;
+		if (array_key_exists($key, $this->served) && $value === $this->served[$key]) {
+			return true;
 		}
 
-		return $value === $this->served[$key] || $value === $this->loaded()[$key];
+		return array_key_exists($key, $this->loaded()) && $value === $this->loaded()[$key];
 	}
 
 	/**
-	 * The tenant values as Nextcloud held them once it had read every config
+	 * What Nextcloud held for each tenant key once it had read every config
 	 * file: the ones loaded after the shim still merge over the tenant values.
 	 *
 	 * @return array<string,mixed>
 	 */
 	private function loaded(): array {
-		if ($this->loaded !== null) {
-			return $this->loaded;
+		return $this->loaded ??= array_replace_recursive($this->served, $this->later());
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function later(): array {
+		if ($this->later !== null) {
+			return $this->later;
 		}
 
-		$this->loaded = $this->served;
+		$this->later = [];
 		foreach ($this->laterConfigFiles as $file) {
-			$later = array_intersect_key($file->read() ?? [], $this->loaded);
-			$this->loaded = array_replace_recursive($this->loaded, $later);
+			$values = array_intersect_key($file->read() ?? [], array_flip($this->keys));
+			$this->later = array_replace_recursive($this->later, $values);
 		}
 
-		return $this->loaded;
+		return $this->later;
 	}
 
 	/**
@@ -124,20 +146,73 @@ final class TenantWrites {
 	 * @param list<string> $deletes
 	 */
 	private function writeMatrixEntry(array $writes, array $deletes): void {
-		$matrix = $this->matrix->read() ?? [];
-		$entry = $matrix[$this->pattern] ?? [];
-		$this->loaded();
+		$this->matrix->update(function (?array $matrix) use ($writes, $deletes): array {
+			$entry = $matrix[$this->pattern] ?? [];
+			foreach ($writes as $key => $value) {
+				$entry[$key] = $this->tenantValue($key, $value);
+			}
+			foreach ($deletes as $key) {
+				unset($entry[$key]);
+			}
 
+			$matrix ??= [];
+			$matrix[$this->pattern] = $entry;
+			return $matrix;
+		});
+
+		$this->loaded();
 		foreach ($writes as $key => $value) {
-			$entry[$key] = $value;
 			$this->served[$key] = $value;
 			$this->loaded[$key] = $value;
 		}
 		foreach ($deletes as $key) {
-			unset($entry[$key], $this->served[$key], $this->loaded[$key]);
+			unset($this->served[$key], $this->loaded[$key]);
+			$baseValue = array_replace_recursive(
+				array_intersect_key($this->base, [$key => true]),
+				array_intersect_key($this->later(), [$key => true]),
+			);
+			$this->loaded += $baseValue;
+		}
+	}
+
+	/**
+	 * The value to keep in the matrix entry so that, merged over the base
+	 * value the way Nextcloud merges config files, it yields the written one.
+	 * Only what differs from the base is kept in a map, so later changes to
+	 * the base still reach the tenant. Lists are kept whole, as tenant lists
+	 * are meant to be written in full.
+	 */
+	private function tenantValue(string $key, mixed $value): mixed {
+		$base = $this->base[$key] ?? null;
+		if (!is_array($value) || !is_array($base) || array_is_list($value)) {
+			return $value;
 		}
 
-		$matrix[$this->pattern] = $entry;
-		$this->matrix->write($matrix);
+		$overrides = self::overrides($value, $base);
+
+		return array_replace_recursive($base, $overrides) === $value ? $overrides : $value;
+	}
+
+	/**
+	 * @param array<array-key,mixed> $value
+	 * @param array<array-key,mixed> $base
+	 * @return array<array-key,mixed>
+	 */
+	private static function overrides(array $value, array $base): array {
+		$overrides = [];
+		foreach ($value as $key => $item) {
+			if (!array_key_exists($key, $base)) {
+				$overrides[$key] = $item;
+			} elseif (is_array($item) && is_array($base[$key]) && !array_is_list($item)) {
+				$nested = self::overrides($item, $base[$key]);
+				if ($nested !== []) {
+					$overrides[$key] = $nested;
+				}
+			} elseif ($item !== $base[$key]) {
+				$overrides[$key] = $item;
+			}
+		}
+
+		return $overrides;
 	}
 }

@@ -198,6 +198,14 @@ final class LoaderTest extends TestCase {
 		$this->assertNull($config->getValue('trusted_domains'));
 	}
 
+	public function testServesTheBaseValueInTheSameRequestOnceATenantKeyIsDeleted(): void {
+		$config = $this->writingConfigServing('domain01.example.coop');
+
+		$config->setValues(['mail_smtphost' => null]);
+
+		$this->assertSame('base.example.coop', $config->getValue('mail_smtphost'));
+	}
+
 	public function testLeavesConfigPhpWritesAloneWhenNoTenantMatches(): void {
 		$config = $this->writingConfigServing('unknown.example.coop');
 

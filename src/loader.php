@@ -24,9 +24,12 @@ $multitenancyMatch = $multitenancyManager->getMatch($_SERVER['HTTP_HOST'] ?? 'lo
 
 if ($multitenancyMatch !== null) {
 	if (isset($this) && property_exists($this, 'envCache')) {
+		$multitenancyBaseValues = property_exists($this, 'cache')
+			? array_intersect_key($this->cache, $multitenancyMatch->config)
+			: [];
 		$multitenancyServed = [];
 		foreach ($multitenancyMatch->config as $multitenancyKey => $multitenancyValue) {
-			$multitenancyBase = $this->cache[$multitenancyKey] ?? null;
+			$multitenancyBase = $multitenancyBaseValues[$multitenancyKey] ?? null;
 			$multitenancyServed[$multitenancyKey] = is_array($multitenancyValue) && is_array($multitenancyBase)
 				? array_replace_recursive($multitenancyBase, $multitenancyValue)
 				: $multitenancyValue;
@@ -53,6 +56,7 @@ if ($multitenancyMatch !== null) {
 					$multitenancyManager->matrixFile(),
 					$multitenancyMatch->pattern,
 					$multitenancyServed,
+					$multitenancyBaseValues,
 					array_map(
 						static fn (string $file) => new \LibreCode\MultiTenancyGlobalConfig\ConfigFile($file),
 						$multitenancyShimIndex === false ? [] : array_slice($multitenancyConfigFiles, $multitenancyShimIndex + 1),
@@ -64,6 +68,7 @@ if ($multitenancyMatch !== null) {
 					foreach ($writes->removed() as $key) {
 						unset($this->envCache[$key]);
 					}
+					$this->cache = array_replace($this->cache, $writes->restored());
 				},
 			);
 		}
@@ -82,6 +87,7 @@ unset(
 	$multitenancyManager,
 	$multitenancyMatch,
 	$multitenancyServed,
+	$multitenancyBaseValues,
 	$multitenancyKey,
 	$multitenancyValue,
 	$multitenancyBase,

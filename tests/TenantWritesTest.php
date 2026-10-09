@@ -34,9 +34,13 @@ final class TenantWritesTest extends TestCase {
 
 	/**
 	 * @param array<string,mixed> $served
+	 * @param array<string,mixed> $base
 	 */
-	private function writes(array $served = ['mail_smtphost' => 'smtp01.example.coop']): TenantWrites {
-		return new TenantWrites($this->configPhp, $this->matrix, self::PATTERN, $served, [$this->laterConfig]);
+	private function writes(
+		array $served = ['mail_smtphost' => 'smtp01.example.coop'],
+		array $base = ['mail_smtphost' => 'base.example.coop'],
+	): TenantWrites {
+		return new TenantWrites($this->configPhp, $this->matrix, self::PATTERN, $served, $base, [$this->laterConfig]);
 	}
 
 	public function testKeepsTheConfigPhpValueOfAnUntouchedTenantKey(): void {
@@ -146,5 +150,63 @@ final class TenantWritesTest extends TestCase {
 			$header . '$CONFIG = ',
 			(string)file_get_contents(vfsStream::url('multitenancy-writes-test/config.php')),
 		);
+	}
+
+	public function testKeepsTheOtherMatrixEntriesWhenWritingOne(): void {
+		$this->matrix->write([
+			self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop'],
+			'/^domain02\.example\.coop$/' => ['mail_smtphost' => 'smtp02.example.coop'],
+		]);
+
+		$this->writes()->persist(['version' => '36.0.0.0', 'mail_smtphost' => 'written.example.coop']);
+
+		$this->assertSame(
+			['mail_smtphost' => 'smtp02.example.coop'],
+			$this->matrix->read()['/^domain02\.example\.coop$/'],
+		);
+	}
+
+	public function testKeepsOnlyWhatDiffersFromTheBaseOfAWrittenMap(): void {
+		$this->matrix->write([self::PATTERN => ['redis' => ['port' => 6380]]]);
+		$writes = $this->writes(
+			['redis' => ['host' => 'base-redis', 'timeout' => 5, 'port' => 6380]],
+			['redis' => ['host' => 'base-redis', 'timeout' => 5]],
+		);
+
+		$writes->persist(['version' => '36.0.0.0', 'redis' => ['host' => 'base-redis', 'timeout' => 5, 'port' => 6381]]);
+
+		$this->assertSame([self::PATTERN => ['redis' => ['port' => 6381]]], $this->matrix->read());
+	}
+
+	public function testKeepsAWrittenListWhole(): void {
+		$this->matrix->write([self::PATTERN => ['trusted_domains' => ['x.example.coop']]]);
+		$writes = $this->writes(
+			['trusted_domains' => ['x.example.coop', 'b.example.coop']],
+			['trusted_domains' => ['a.example.coop', 'b.example.coop']],
+		);
+
+		$writes->persist(['version' => '36.0.0.0', 'trusted_domains' => ['x.example.coop', 'b.example.coop', 'd.example.coop']]);
+
+		$this->assertSame(
+			[self::PATTERN => ['trusted_domains' => ['x.example.coop', 'b.example.coop', 'd.example.coop']]],
+			$this->matrix->read(),
+		);
+	}
+
+	public function testRestoresTheBaseValueOfADeletedTenantKey(): void {
+		$writes = $this->writes();
+
+		$writes->persist(['version' => '36.0.0.0']);
+
+		$this->assertSame(['mail_smtphost' => 'base.example.coop'], $writes->restored());
+	}
+
+	public function testDoesNotTakeTheRestoredBaseValueForATenantWrite(): void {
+		$writes = $this->writes();
+		$writes->persist(['version' => '36.0.0.0']);
+
+		$writes->persist(['version' => '36.0.0.0', 'mail_smtphost' => 'base.example.coop', 'loglevel' => 2]);
+
+		$this->assertSame([self::PATTERN => []], $this->matrix->read());
 	}
 }
