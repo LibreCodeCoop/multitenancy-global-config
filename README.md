@@ -34,18 +34,24 @@ auto-loaded by Nextcloud)      by Nextcloud)                injects the tenant c
 - The **loader shim** `config/multitenancy.config.php` only points at the
   matrix directory and this module. The body in `src/loader.php` reads the
   request host (`$_SERVER['HTTP_HOST']`) and hands it to
-  `Manager::getConfigFromHost()`, which matches it against the regex keys of
-  the matrix and returns the matching entry — or an empty array when nothing
-  matches.
+  `Manager::getMatch()`, which matches it against the regex keys of the
+  matrix and returns the matching pattern and entry — or null when nothing
+  matches. `Manager::getConfigFromHost()` remains for shims copied from
+  earlier versions, which call it directly.
 
 ### How the shim finds the module
 
 The shim carries no path to this module: it looks for it in the app
 directories the instance is configured with. Nextcloud only resolves those
 into `OC::$APPSROOTS` *after* the config is read, so the shim reads
-`apps_paths` from the config merged so far — `config.php` is loaded before any
-`*.config.php`, which is where `apps_paths` is set — and falls back to the
-default `apps/` directory when it is not set, the same as Nextcloud does.
+`apps_paths` from the config merged so far — it is set in `config.php` or, as
+on the official image, in `apps.config.php`, and both are read before the
+shim — and falls back to the default `apps/` directory when it is not set, the
+same as Nextcloud does.
+
+A directory named exactly `multitenancy-global-config` is preferred; failing
+that, any directory whose name ends with it is accepted. When several match,
+the shim raises an `E_USER_WARNING` listing them and loads the first.
 
 Nothing is looked up by app id, so this module is not a Nextcloud app and does
 not need enabling; the directory only has to sit in one of those paths. If it
@@ -64,6 +70,11 @@ Instead, tenant values are written into `OC\Config::$envCache`, the channel
 behind the `NC_*` environment variables: Nextcloud reads it with priority and
 never persists it. Unlike real `NC_*` variables, which `getenv()` can only
 deliver as strings, this accepts arrays and booleans.
+
+Because Nextcloud reads that channel first, a tenant value also wins over a
+`*.config.php` loaded after the shim — on the official image, the `smtp`,
+`redis`, `s3` and `reverse-proxy` files generated from environment variables.
+Those files still apply to every host no tenant matches.
 
 If a future Nextcloud release drops that channel, the loader falls back to
 `$CONFIG` and raises an `E_USER_WARNING` saying so, rather than failing the
@@ -86,7 +97,9 @@ Writes made while a tenant is served — `occ config:system:set` and
 they belong:
 
 - a key the tenant defines is written to the tenant's entry in the matrix
-  file, and config.php keeps its own value for it;
+  file, and config.php keeps its own value for it. For a map such as `redis`,
+  only what differs from the base value is kept, so later base changes still
+  reach the tenant; a list is kept whole;
 - any other key is an instance-wide setting and is written to config.php, as
   usual.
 
@@ -103,7 +116,12 @@ the request. That includes a value another `*.config.php` loaded after the
 shim merged over it, so such a file never ends up in the matrix.
 
 Deleting a tenant key removes it from the matrix entry, and the tenant falls
-back to the base value.
+back to the base value, from that request on.
+
+config.php and the matrix are each read, changed and rewritten under one
+exclusive lock, and read under a shared one, as Nextcloud does for
+config.php, so concurrent writes never see a half-written file nor drop each
+other's changes. A write that fails is reported and not retried.
 
 Writes made for a host no tenant matches, such as `occ` without `HTTP_HOST`,
 are left to Nextcloud untouched.
