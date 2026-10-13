@@ -121,7 +121,11 @@ back to the base value, from that request on.
 config.php and the matrix are each read, changed and rewritten under one
 exclusive lock, and read under a shared one, as Nextcloud does for
 config.php, so concurrent writes never see a half-written file nor drop each
-other's changes. A write that fails is reported and not retried.
+other's changes. A write that fails is reported and not retried, and leaves
+both files as they were: the file that failed gets its previous content back,
+and when config.php fails after the matrix was written, the tenant keys of the
+matrix entry are rolled back. Both files are rewritten in place, as Nextcloud
+locks config.php itself and would keep writing to a file renamed away.
 
 Writes made for a host no tenant matches, such as `occ` without `HTTP_HOST`,
 are left to Nextcloud untouched.

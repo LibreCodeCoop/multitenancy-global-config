@@ -11,6 +11,7 @@ namespace LibreCode\MultiTenancyGlobalConfig\Tests;
 
 use LibreCode\MultiTenancyGlobalConfig\ConfigFile;
 use LibreCode\MultiTenancyGlobalConfig\TenantWrites;
+use LibreCode\MultiTenancyGlobalConfig\Tests\Fake\FailingStream;
 use org\bovigo\vfs\vfsStream;
 use PHPUnit\Framework\TestCase;
 
@@ -30,6 +31,10 @@ final class TenantWritesTest extends TestCase {
 
 		$this->configPhp->write(['version' => '36.0.0.0', 'mail_smtphost' => 'base.example.coop']);
 		$this->matrix->write([self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop']]);
+	}
+
+	protected function tearDown(): void {
+		FailingStream::reset();
 	}
 
 	/**
@@ -208,5 +213,118 @@ final class TenantWritesTest extends TestCase {
 		$writes->persist(['version' => '36.0.0.0', 'mail_smtphost' => 'base.example.coop', 'loglevel' => 2]);
 
 		$this->assertSame([self::PATTERN => []], $this->matrix->read());
+	}
+
+	public function testLeavesBothFilesAsTheyWereWhenTheMatrixCannotBeWritten(): void {
+		[$writes, , $matrixPath, $before] = $this->failingWrites();
+		FailingStream::failWrites($matrixPath);
+
+		$this->assertPersistFails($writes, sprintf('Could not write %s', $matrixPath));
+
+		$this->assertSame($before, $this->contents());
+		$this->assertSame(['mail_smtphost' => 'smtp01.example.coop'], $writes->served());
+	}
+
+	public function testRollsBackTheMatrixEntryWhenConfigPhpCannotBeWritten(): void {
+		[$writes, $configPhpPath, , $before] = $this->failingWrites();
+		FailingStream::failWrites($configPhpPath);
+
+		$this->assertPersistFails($writes, sprintf('Could not write %s', $configPhpPath));
+
+		$this->assertSame($before, $this->contents());
+		$this->assertSame(['mail_smtphost' => 'smtp01.example.coop'], $writes->served());
+	}
+
+	public function testRestoresADeletedTenantKeyWhenConfigPhpCannotBeWritten(): void {
+		$this->matrix->write([self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop', 'mail_domain' => 'domain01.example.coop']]);
+		[$writes, $configPhpPath] = $this->failingWrites(['mail_smtphost' => 'smtp01.example.coop', 'mail_domain' => 'domain01.example.coop']);
+		FailingStream::failWrites($configPhpPath);
+
+		$this->assertPersistFails($writes, sprintf('Could not write %s', $configPhpPath));
+
+		$this->assertSame(
+			[self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop', 'mail_domain' => 'domain01.example.coop']],
+			$this->matrix->read(),
+		);
+		$this->assertSame([], $writes->removed());
+	}
+
+	public function testKeepsMatrixChangesMadeMeanwhileWhenRollingBack(): void {
+		[$writes, $configPhpPath] = $this->failingWrites();
+		FailingStream::failWrites($configPhpPath);
+		FailingStream::beforeWrite($configPhpPath, function (): void {
+			$this->matrix->update(static function (?array $matrix): array {
+				$matrix[self::PATTERN]['mail_domain'] = 'domain01.example.coop';
+				$matrix['/^domain02\.example\.coop$/'] = ['mail_smtphost' => 'smtp02.example.coop'];
+				return $matrix;
+			});
+		});
+
+		$this->assertPersistFails($writes, sprintf('Could not write %s', $configPhpPath));
+
+		$this->assertSame(
+			[
+				self::PATTERN => ['mail_smtphost' => 'smtp01.example.coop', 'mail_domain' => 'domain01.example.coop'],
+				'/^domain02\.example\.coop$/' => ['mail_smtphost' => 'smtp02.example.coop'],
+			],
+			$this->matrix->read(),
+		);
+	}
+
+	public function testReportsAMatrixEntryThatCouldNotBeRolledBack(): void {
+		[$writes, $configPhpPath, $matrixPath, $before] = $this->failingWrites();
+		FailingStream::failWrites($configPhpPath);
+		FailingStream::failWrites($matrixPath, skip: 1);
+
+		$this->assertPersistFails($writes, sprintf(
+			'Could not write %s, and the tenant matrix entry could not be rolled back: Could not write %s',
+			$configPhpPath,
+			$matrixPath,
+		));
+
+		$this->assertSame($before['config.php'], $this->contents()['config.php']);
+		$this->assertSame([self::PATTERN => ['mail_smtphost' => 'written.example.coop']], $this->matrix->read());
+	}
+
+	/**
+	 * TenantWrites over config.php and the matrix reached through FailingStream.
+	 *
+	 * @param array<string,mixed> $served
+	 * @return array{TenantWrites,string,string,array<string,string>}
+	 */
+	private function failingWrites(array $served = ['mail_smtphost' => 'smtp01.example.coop']): array {
+		$configPhpPath = FailingStream::wrap(vfsStream::url('multitenancy-writes-test/config.php'));
+		$matrixPath = FailingStream::wrap(vfsStream::url('multitenancy-writes-test/multitenancy.database.php'));
+		$writes = new TenantWrites(
+			new ConfigFile($configPhpPath),
+			new ConfigFile($matrixPath),
+			self::PATTERN,
+			$served,
+			['mail_smtphost' => 'base.example.coop', 'mail_domain' => 'base.example.coop'],
+			[],
+		);
+
+		return [$writes, $configPhpPath, $matrixPath, $this->contents()];
+	}
+
+	private function assertPersistFails(TenantWrites $writes, string $message): void {
+		try {
+			$writes->persist(['version' => '36.0.0.0', 'mail_smtphost' => 'written.example.coop', 'loglevel' => 2]);
+			$this->fail('the failed write must be reported');
+		} catch (\RuntimeException $e) {
+			$this->assertSame($message, $e->getMessage());
+		}
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	private function contents(): array {
+		$contents = [];
+		foreach (['config.php', 'multitenancy.database.php'] as $file) {
+			$contents[$file] = (string)file_get_contents(vfsStream::url('multitenancy-writes-test/' . $file));
+		}
+
+		return $contents;
 	}
 }

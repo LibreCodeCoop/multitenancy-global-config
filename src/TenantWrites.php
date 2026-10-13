@@ -47,36 +47,51 @@ final class TenantWrites {
 	}
 
 	/**
+	 * Writes the matrix entry first and config.php last, both under the
+	 * config.php lock. When config.php cannot be written, the matrix entry is
+	 * rolled back, so a failed write leaves both files as they were.
+	 *
 	 * @param array<string,mixed> $written the whole config Nextcloud is persisting
 	 * @param string|null $header the header Nextcloud wrote before $CONFIG
+	 * @throws \RuntimeException when a file cannot be written
 	 */
 	public function persist(array $written, ?string $header = null): void {
-		$this->configPhp->update(function (?array $configPhp) use ($written): array {
-			$tenantWrites = [];
-			$tenantDeletes = [];
+		$tenantWrites = [];
+		$tenantDeletes = [];
+		$previousEntry = null;
 
-			foreach ($this->keys as $key) {
-				if (array_key_exists($key, $written)) {
-					if (!$this->isLoadedValue($key, $written[$key])) {
-						$tenantWrites[$key] = $written[$key];
+		try {
+			$this->configPhp->update(function (?array $configPhp) use ($written, &$tenantWrites, &$tenantDeletes, &$previousEntry): array {
+				foreach ($this->keys as $key) {
+					if (array_key_exists($key, $written)) {
+						if (!$this->isLoadedValue($key, $written[$key])) {
+							$tenantWrites[$key] = $written[$key];
+						}
+					} elseif (array_key_exists($key, $this->served)) {
+						$tenantDeletes[] = $key;
 					}
-				} elseif (array_key_exists($key, $this->served)) {
-					$tenantDeletes[] = $key;
+
+					if (array_key_exists($key, $configPhp ?? [])) {
+						$written[$key] = $configPhp[$key];
+					} else {
+						unset($written[$key]);
+					}
 				}
 
-				if (array_key_exists($key, $configPhp ?? [])) {
-					$written[$key] = $configPhp[$key];
-				} else {
-					unset($written[$key]);
+				if ($tenantWrites !== [] || $tenantDeletes !== []) {
+					$previousEntry = $this->writeMatrixEntry($tenantWrites, $tenantDeletes);
 				}
-			}
 
-			if ($tenantWrites !== [] || $tenantDeletes !== []) {
-				$this->writeMatrixEntry($tenantWrites, $tenantDeletes);
+				return $written;
+			}, $header);
+		} catch (\RuntimeException $e) {
+			if ($previousEntry !== null) {
+				$this->rollBackMatrixEntry([...array_keys($tenantWrites), ...$tenantDeletes], $previousEntry, $e);
 			}
+			throw $e;
+		}
 
-			return $written;
-		}, $header);
+		$this->serve($tenantWrites, $tenantDeletes);
 	}
 
 	/**
@@ -144,10 +159,12 @@ final class TenantWrites {
 	/**
 	 * @param array<string,mixed> $writes
 	 * @param list<string> $deletes
+	 * @return array<string,mixed> the entry as it was before
 	 */
-	private function writeMatrixEntry(array $writes, array $deletes): void {
-		$this->matrix->update(function (?array $matrix) use ($writes, $deletes): array {
-			$entry = $matrix[$this->pattern] ?? [];
+	private function writeMatrixEntry(array $writes, array $deletes): array {
+		$previousEntry = [];
+		$this->matrix->update(function (?array $matrix) use ($writes, $deletes, &$previousEntry): array {
+			$entry = $previousEntry = $matrix[$this->pattern] ?? [];
 			foreach ($writes as $key => $value) {
 				$entry[$key] = $this->tenantValue($key, $value);
 			}
@@ -160,6 +177,47 @@ final class TenantWrites {
 			return $matrix;
 		});
 
+		return $previousEntry;
+	}
+
+	/**
+	 * Puts back the given keys of the matrix entry, leaving any other change
+	 * made to the matrix in the meantime.
+	 *
+	 * @param list<string> $keys
+	 * @param array<string,mixed> $previousEntry
+	 * @throws \RuntimeException when the matrix cannot be written
+	 */
+	private function rollBackMatrixEntry(array $keys, array $previousEntry, \RuntimeException $cause): void {
+		try {
+			$this->matrix->update(function (?array $matrix) use ($keys, $previousEntry): array {
+				$entry = $matrix[$this->pattern] ?? [];
+				foreach ($keys as $key) {
+					if (array_key_exists($key, $previousEntry)) {
+						$entry[$key] = $previousEntry[$key];
+					} else {
+						unset($entry[$key]);
+					}
+				}
+
+				$matrix ??= [];
+				$matrix[$this->pattern] = $entry;
+				return $matrix;
+			});
+		} catch (\RuntimeException $e) {
+			throw new \RuntimeException(
+				sprintf('%s, and the tenant matrix entry could not be rolled back: %s', $cause->getMessage(), $e->getMessage()),
+				0,
+				$cause,
+			);
+		}
+	}
+
+	/**
+	 * @param array<string,mixed> $writes
+	 * @param list<string> $deletes
+	 */
+	private function serve(array $writes, array $deletes): void {
 		$this->loaded();
 		foreach ($writes as $key => $value) {
 			$this->served[$key] = $value;
