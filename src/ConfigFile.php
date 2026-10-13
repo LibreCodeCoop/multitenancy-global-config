@@ -57,7 +57,12 @@ final class ConfigFile {
 
 	/**
 	 * Reads, changes and rewrites the file under one exclusive lock, so no
-	 * concurrent write is lost in between.
+	 * concurrent write is lost in between. A write that fails midway is
+	 * replaced by the previous content, so the file is never left truncated.
+	 *
+	 * The file is rewritten in place rather than renamed over, because
+	 * \OC\Config::writeData() locks config.php itself: a writer waiting on the
+	 * replaced file would write to a file no longer in use.
 	 *
 	 * @param \Closure(array<string,mixed>|null):array<string,mixed> $change
 	 * @throws \RuntimeException when the file cannot be written
@@ -65,11 +70,14 @@ final class ConfigFile {
 	public function update(\Closure $change, ?string $header = null): void {
 		$pointer = $this->open('c+', LOCK_EX);
 		try {
-			$header ??= self::headerOf((string)stream_get_contents($pointer)) ?? self::HEADER;
+			$previous = (string)stream_get_contents($pointer);
+			$header ??= self::headerOf($previous) ?? self::HEADER;
 			$content = $header . '$CONFIG = ' . var_export($change($this->includeConfig(true)), true) . ";\n";
 
-			if (!rewind($pointer) || !ftruncate($pointer, 0)
-				|| fwrite($pointer, $content) !== strlen($content) || !fflush($pointer)) {
+			if (!self::replaceContent($pointer, $content)) {
+				if (!self::replaceContent($pointer, $previous)) {
+					throw new \RuntimeException(sprintf('Could not write %s nor restore its previous content', $this->path));
+				}
 				throw new \RuntimeException(sprintf('Could not write %s', $this->path));
 			}
 		} finally {
@@ -78,6 +86,14 @@ final class ConfigFile {
 		}
 
 		$this->invalidateOpcache();
+	}
+
+	/**
+	 * @param resource $pointer
+	 */
+	private static function replaceContent($pointer, string $content): bool {
+		return rewind($pointer) && ftruncate($pointer, 0)
+			&& fwrite($pointer, $content) === strlen($content) && fflush($pointer);
 	}
 
 	/**
